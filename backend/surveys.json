@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Mary Sagoe",
+    "phone": "0509127511",
+    "email": "abuka1009@gmail.com",
+    "age": "25",
+    "gender": "Female",
+    "location": "Ashanti Region",
+    "ease": "Very Easy",
+    "helpful": "Very helpful",
+    "asr_accuracy": "Excellent",
+    "feedback": "The App works great",
+    "recommend": "Yes",
+    "timestamp": "2026-05-07T11:59:01.945Z",
+    "language": "dag",
+    "sessionId": "1778153620477"
+  },
+  {
+    "name": "Akwasi",
+    "phone": "0509127511",
+    "email": "yaw@gmail.com",
+    "age": "20",
+    "gender": "Male",
+    "location": "Ashanti Region",
+    "ease": "Very Easy",
+    "helpful": "Very helpful",
+    "asr_accuracy": "Excellent",
+    "feedback": "Good",
+    "recommend": "Yes",
+    "timestamp": "2026-05-13T13:18:34.075Z",
+    "language": "tw",
+    "sessionId": "1778676618563"
+  }
+]

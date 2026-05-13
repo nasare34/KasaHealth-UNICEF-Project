@@ -1,0 +1,32 @@
+# ── Render.com deployment config ─────────────────────────────────────────────
+# Deploy both FastAPI backend and Flask frontend as two separate web services.
+# https://render.com — free tier available
+
+services:
+  - type: web
+    name: kasa-health-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: KHAYA_ASR_KEY
+        sync: false
+      - key: KHAYA_TTS_KEY
+        sync: false
+      - key: KHAYA_TRANSLATE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+  - type: web
+    name: kasa-health-frontend
+    runtime: python
+    rootDir: frontend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: FASTAPI_URL
+        value: https://kasa-health-backend.onrender.com
+      - key: FLASK_PORT
+        value: "5000"

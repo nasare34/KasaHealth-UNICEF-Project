@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kasa Health — ASRH Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/main.css"/>
+</head>
+<body>
+
+<!-- ── SIDEBAR ───────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="13" stroke="var(--green)" stroke-width="1.5"/>
+          <path d="M9 14h10M14 9v10" stroke="var(--green)" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="14" cy="14" r="4" fill="var(--green)" fill-opacity="0.2"/>
+        </svg>
+      </div>
+      <span class="logo-text">Kasa<span class="logo-accent">Health</span></span>
+    </div>
+    <button class="sidebar-close" id="sidebarClose">✕</button>
+  </div>
+
+  <div class="sidebar-section">
+    <label class="section-label">Language / Kasa</label>
+    <div class="lang-grid">
+      <button class="lang-btn active" data-lang="tw"><span class="lang-flag"></span><span>Twi</span></button>
+      <button class="lang-btn" data-lang="dag"><span class="lang-flag"></span><span>Dagbani</span></button>
+      <button class="lang-btn" data-lang="ee"><span class="lang-flag"></span><span>Ewe</span></button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <label class="section-label">Voice / Speaker</label>
+    <div class="speaker-grid">
+      <button class="speaker-btn active" data-speaker="female"><span>👩</span> Female</button>
+      <button class="speaker-btn" data-speaker="male_low"><span>👨</span> Male Low</button>
+      <button class="speaker-btn" data-speaker="male_high"><span>👦</span> Male High</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <label class="section-label">Playback Speed</label>
+    <div class="speed-control">
+      <span class="speed-label-sm">0.5×</span>
+      <input type="range" id="speedSlider" class="speed-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+      <span class="speed-label-sm">2×</span>
+    </div>
+    <div class="speed-display">Speed: <strong id="speedLabel">1.0×</strong></div>
+  </div>
+
+  <div class="sidebar-section">
+    <label class="section-label">Quick Topics</label>
+    <div class="topics">
+      <button class="topic-chip" data-topic="puberty">Puberty / Nkokonsuo</button>
+      <button class="topic-chip" data-topic="contraception">Contraception</button>
+      <button class="topic-chip" data-topic="sti">STIs & HIV</button>
+      <button class="topic-chip" data-topic="pregnancy">Pregnancy</button>
+      <button class="topic-chip" data-topic="menstruation">Menstruation</button>
+      <button class="topic-chip" data-topic="consent">Consent & Safety</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section sidebar-footer-section">
+    <button class="new-chat-btn" id="newChatBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      New Conversation
+    </button>
+    <div class="sidebar-actions">
+      <button class="sidebar-action-btn" id="historyBtn">📋 Chat History</button>
+      <button class="sidebar-action-btn survey-trigger" id="surveyBtn">📝 Give Feedback</button>
+    </div>
+    <div class="unicef-badge">
+      <span>A UNICEF Ghana Initiative</span>
+      <span class="partner">Powered by Khaya AI</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── MAIN ───────────────────────────────────────────────────────────────── -->
+<main class="main" id="main">
+
+  <header class="topbar">
+    <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
+    <div class="topbar-center">
+      <span class="current-lang-badge" id="currentLangBadge">🇬🇭 Twi</span>
+    </div>
+    <div class="topbar-right">
+      <button class="topbar-btn" onclick="document.getElementById('surveyBtn').click()" title="Feedback">📝</button>
+      <button class="topbar-btn" onclick="document.getElementById('historyBtn').click()" title="History">📋</button>
+      <div class="status-dot" id="statusDot"></div>
+    </div>
+  </header>
+
+  <!-- ── FEATURE TABS ──────────────────────────────────────────────────────── -->
+  <div class="feature-tabs">
+    <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+    <button class="tab-btn" data-tab="transcribe">🎤 Transcribe</button>
+    <button class="tab-btn" data-tab="agent">🤖 Voice Agent</button>
+  </div>
+
+  <!-- ────────────────── TAB: CHAT ──────────────────────────────────────── -->
+  <div class="tab-content active" id="tab-chat">
+    <div class="chat-area" id="chatArea">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">
+          <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="30" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <path d="M22 32h20M32 22v20" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="32" cy="32" r="10" fill="var(--green)" fill-opacity="0.15"/>
+          </svg>
+        </div>
+        <h1 class="welcome-title">Akwaaba · Woezo · Ni Ti Yɛ</h1>
+        <p class="welcome-subtitle">Ask any health question in your language.<br>Safe · Private · Free</p>
+        <div class="welcome-cards">
+          <div class="welcome-card" data-prompt="What happens to my body during puberty?"><span class="card-icon">🌱</span><span>Body changes & puberty</span></div>
+          <div class="welcome-card" data-prompt="How can I protect myself from STIs?"><span class="card-icon">🛡️</span><span>STI protection</span></div>
+          <div class="welcome-card" data-prompt="What contraception is available for young people in Ghana?"><span class="card-icon">💊</span><span>Contraception</span></div>
+          <div class="welcome-card" data-prompt="What are signs of a healthy relationship?"><span class="card-icon">❤️</span><span>Healthy relationships</span></div>
+        </div>
+      </div>
+      <div class="messages" id="messages"></div>
+    </div>
+
+    <div class="input-area">
+      <div class="mode-toggle-inline">
+        <button class="mode-btn active" id="modeVoice">🎤 Voice</button>
+        <button class="mode-btn" id="modeText">⌨️ Text</button>
+      </div>
+
+      <div class="voice-panel" id="voicePanel">
+        <div class="voice-visualizer" id="voiceViz">
+          <div class="viz-bars">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          </div>
+        </div>
+        <button class="mic-btn" id="micBtn">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+          </svg>
+          <span class="mic-label" id="micLabel">Hold to speak</span>
+        </button>
+        <p class="voice-hint">Speak in <strong id="hintLang">Twi</strong> — I will understand</p>
+      </div>
+
+      <div class="text-panel hidden" id="textPanel">
+        <div class="text-input-wrap">
+          <textarea class="text-input" id="textInput" placeholder="Type your health question..." rows="1"></textarea>
+          <button class="send-btn" id="sendBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+          </button>
+        </div>
+        <p class="text-hint">Answered in <span id="textHintLang">Twi</span> and English</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── TAB: TRANSCRIBE ──────────────────────────────── -->
+  <div class="tab-content" id="tab-transcribe">
+    <div class="transcribe-page">
+      <div class="transcribe-header">
+        <h2>🎤 Speech Transcription</h2>
+        <p>Record your speech and get it transcribed to text in your language. No LLM — just pure speech-to-text.</p>
+      </div>
+
+      <div class="transcribe-recorder">
+        <div class="voice-visualizer" id="transViz">
+          <div class="viz-bars">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          </div>
+        </div>
+        <button class="mic-btn large-mic" id="transMicBtn">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+          </svg>
+          <span id="transMicLabel">Hold to record</span>
+        </button>
+        <p class="voice-hint">Recording in <strong id="transLangLabel">Twi</strong></p>
+      </div>
+
+      <div class="transcribe-result" id="transcribeResult" style="display:none">
+        <div class="result-header">
+          <span class="result-badge" id="transLangBadge">Twi</span>
+          <div class="result-actions">
+            <button class="action-btn" id="transCopyBtn">📋 Copy</button>
+            <button class="action-btn dl-btn" id="transDownloadBtn">⬇ Download</button>
+          </div>
+        </div>
+        <div class="transcript-box" id="transcriptBox" contenteditable="true" spellcheck="false"></div>
+        <p class="transcript-hint">You can edit the transcription above</p>
+      </div>
+
+      <div class="transcribe-history" id="transcribeHistory">
+        <h3>Recent Transcriptions</h3>
+        <div id="transHistoryList" class="trans-history-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── TAB: VOICE AGENT ─────────────────────────────── -->
+  <div class="tab-content" id="tab-agent">
+    <div class="agent-page">
+      <div class="agent-header">
+        <div class="agent-avatar" id="agentAvatar">
+          <svg width="40" height="40" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="30" fill="var(--green-glow)" stroke="var(--green)" stroke-width="1.5"/>
+            <path d="M22 28a10 10 0 0 1 20 0" stroke="var(--green)" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="26" cy="30" r="2" fill="var(--green)"/>
+            <circle cx="38" cy="30" r="2" fill="var(--green)"/>
+            <path d="M26 38c1.5 2 4.5 3 6 3s4.5-1 6-3" stroke="var(--green)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="agent-info">
+          <h2>Kasa — Live Voice Agent</h2>
+          <p>Have a natural health conversation. Hold the button, speak, release — Kasa will reply in your language.</p>
+        </div>
+        <div class="agent-status-pill" id="agentStatusPill">Ready</div>
+      </div>
+
+      <div class="agent-conversation" id="agentConversation">
+        <div class="agent-bubble agent-bubble-system">
+          👋 Hi! I'm Kasa, your health companion. Ask me anything about your health — I'll understand and reply in your language. Press the button below to start talking.
+        </div>
+      </div>
+
+      <div class="agent-controls">
+        <div class="agent-viz" id="agentViz">
+          <div class="viz-bars agent-viz-bars">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          </div>
+        </div>
+        <button class="agent-mic-btn" id="agentMicBtn">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+          </svg>
+          <span id="agentMicLabel">Hold to talk</span>
+        </button>
+        <button class="agent-clear-btn" id="agentClearBtn">🗑 Clear chat</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── LOADING OVERLAY ────────────────────────────────────────────────────── -->
+<div class="processing-overlay hidden" id="processingOverlay">
+  <div class="processing-card">
+    <div class="spinner"></div>
+    <p id="processingText">Processing…</p>
+  </div>
+</div>
+
+<!-- ── SURVEY MODAL ───────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="surveyModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>📝 Share Your Feedback</h2>
+      <button class="modal-close" id="surveyClose">✕</button>
+    </div>
+    <form id="surveyForm" class="survey-form">
+
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="Your name (optional)">
+      </div>
+
+      <div class="form-group">
+        <label>Phone Number <span class="optional-tag">(optional)</span></label>
+        <input type="tel" name="phone" placeholder="e.g. 0247592931">
+      </div>
+
+      <div class="form-group">
+        <label>Email Address *</label>
+        <input type="email" name="email" placeholder="e.g. kofi@gmail.com" required>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Age</label>
+          <input type="number" name="age" placeholder="e.g. 19" min="10" max="99">
+        </div>
+        <div class="form-group">
+          <label>Gender *</label>
+          <select name="gender" required>
+            <option value="">Select</option>
+            <option>Male</option>
+            <option>Female</option>
+            <option>Prefer not to say</option>
+            <option value="__other__">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Region *</label>
+        <select name="location" required>
+          <option value="">Select your region</option>
+          <option>Ashanti Region</option>
+          <option>Greater Accra Region</option>
+          <option>Bono Region</option>
+          <option>Bono East Region</option>
+          <option>Ahafo Region</option>
+          <option>Central Region</option>
+          <option>Eastern Region</option>
+          <option>Oti Region</option>
+          <option>Volta Region</option>
+          <option>Savanna Region</option>
+          <option>Upper East Region</option>
+          <option>Upper West Region</option>
+          <option>Western Region</option>
+          <option>Western North Region</option>
+          <option>Northern Region</option>
+          <option>North East Region</option>
+          <option value="__other__">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>How easy was the app to use? *</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="ease" value="Hard" required><span>😕 Hard</span></label>
+          <label class="rating-opt"><input type="radio" name="ease" value="OK"><span>😐 OK</span></label>
+          <label class="rating-opt"><input type="radio" name="ease" value="Easy"><span>🙂 Easy</span></label>
+          <label class="rating-opt"><input type="radio" name="ease" value="Very Easy"><span>😄 Very Easy</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>How helpful were the health answers? *</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="helpful" value="Not helpful" required><span>😕 Not helpful</span></label>
+          <label class="rating-opt"><input type="radio" name="helpful" value="Somewhat helpful"><span>😐 Somewhat</span></label>
+          <label class="rating-opt"><input type="radio" name="helpful" value="Helpful"><span>🙂 Helpful</span></label>
+          <label class="rating-opt"><input type="radio" name="helpful" value="Very helpful"><span>😄 Very helpful</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>How accurate were answers, speech recognition and translations? *</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Poor" required><span>😕 Poor</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Fair"><span>😐 Fair</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Good"><span>🙂 Good</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Excellent"><span>😄 Excellent</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Challenges or suggestions? *</label>
+        <textarea name="feedback" rows="3" placeholder="Tell us what could be better…" required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Would you recommend this app? *</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="recommend" value="Yes" required><span>👍 Yes</span></label>
+          <label class="rating-opt"><input type="radio" name="recommend" value="Maybe"><span>🤔 Maybe</span></label>
+          <label class="rating-opt"><input type="radio" name="recommend" value="No"><span>👎 No</span></label>
+        </div>
+      </div>
+
+      <button type="submit" class="survey-submit-btn">Submit Feedback</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── HISTORY PANEL ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="historyPanel">
+  <div class="modal-card history-card">
+    <div class="modal-header">
+      <h2>📋 Chat History</h2>
+      <button class="modal-close" id="historyClose">✕</button>
+    </div>
+    <p class="history-note">Conversations are saved temporarily in your browser.</p>
+    <div id="historyList" class="history-list"></div>
+  </div>
+</div>
+
+<!-- ── FEEDBACK MODAL (thumbs down) ──────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="feedbackModal">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-header">
+      <h2>👎 Help us improve</h2>
+      <button class="modal-close" id="fbClose">✕</button>
+    </div>
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:16px;line-height:1.6">
+      Tell us what was wrong with this answer. Your correction will help train better models for Ghanaian languages.
+    </p>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>What was wrong? *</label>
+      <select id="fbReason">
+        <option value="">Select a reason</option>
+        <option value="Wrong information">Wrong health information</option>
+        <option value="Bad translation">Bad translation</option>
+        <option value="Wrong language">Wrong language used</option>
+        <option value="Incomplete answer">Answer was incomplete</option>
+        <option value="Too long">Answer was too long</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>What should the correct answer be? (text)</label>
+      <textarea id="fbCorrection" rows="3" placeholder="Type the correct answer in your language…" style="background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-family:Sora,sans-serif;font-size:0.84rem;width:100%;outline:none;resize:vertical"></textarea>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px">
+      <label>Record the correct answer (audio) — optional</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+        <button class="mic-btn" id="fbMicBtn" style="padding:10px 20px;flex-shrink:0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+          </svg>
+          <span id="fbRecordLabel">Hold to record correction</span>
+        </button>
+        <span id="fbAudioStatus" style="font-size:0.75rem;color:var(--green-light)"></span>
+      </div>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px">Your audio will be uploaded to help improve speech recognition in your language.</p>
+    </div>
+
+    <button class="survey-submit-btn" id="fbSubmitBtn">Submit Correction</button>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
