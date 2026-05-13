@@ -9,6 +9,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: KHAYA_ASR_KEY
         sync: false
       - key: KHAYA_TTS_KEY
@@ -28,5 +30,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: FASTAPI_URL
         value: https://kasa-health-backend.onrender.com
