@@ -318,6 +318,11 @@ function addMessage(role, text, extras={}) {
     tb.innerHTML=`<div class="msg-translation-label">English</div><div>${extras.english}</div>`;content.appendChild(tb);
   }
   if(role==='bot'){
+    // Per-message disclaimer
+    const disc=document.createElement('div'); disc.className='msg-disclaimer';
+    disc.innerHTML='⚕️ <strong>General information only.</strong> For personal or urgent concerns contact <strong>SHEplus Ghana</strong>: <a href="tel:0550545672" style="color:var(--green-light)">055 054 5672</a> / <a href="tel:0800001122" style="color:var(--green-light)">0800 00 11 22</a>';
+    content.appendChild(disc);
+
     const actions=document.createElement('div'); actions.className='msg-actions';
     // Play / TTS button
     if(extras.audioB64){
@@ -710,6 +715,14 @@ function appendAgentBubble(role, text, label, englishText='', extras={}) {
     wrap.appendChild(eng);
   }
 
+  // Per-message disclaimer on agent responses
+  if(role === 'agent') {
+    const agentDisc = document.createElement('div');
+    agentDisc.className = 'msg-disclaimer';
+    agentDisc.innerHTML = '⚕️ General info only. Contact <strong>SHEplus Ghana</strong>: <a href="tel:0550545672" style="color:var(--green-light)">055 054 5672</a> / <a href="tel:0800001122" style="color:var(--green-light)">0800 00 11 22</a>';
+    wrap.appendChild(agentDisc);
+  }
+
   // Add thumbs on agent responses only
   if(role === 'agent') {
     wrap.appendChild(makeThumbs({
@@ -742,5 +755,48 @@ function scrollToBottom(){ requestAnimationFrame(()=>{ const ca=document.getElem
 function showError(msg){ const d=document.createElement('div');d.className='message';d.innerHTML=`<div class="msg-avatar" style="background:rgba(248,81,73,0.1);border-color:var(--red)">⚠️</div><div class="msg-content"><div class="msg-bubble" style="border-color:rgba(248,81,73,0.3);color:var(--red)">${msg}</div></div>`;document.getElementById('messages').appendChild(d);scrollToBottom(); }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+
+// ── Disclaimer modal ──────────────────────────────────────────────────────────
+const disclaimerModal   = document.getElementById('disclaimerModal');
+const disclaimerCheck   = document.getElementById('disclaimerCheck');
+const disclaimerAgreeBtn = document.getElementById('disclaimerAgreeBtn');
+const checkLabel        = document.getElementById('disclaimerCheckLabel');
+
+// Show disclaimer on every visit (required for safeguarding)
+// Only skip if user agreed in this same browser session (not across sessions)
+if (!sessionStorage.getItem('kasa_disclaimer_agreed')) {
+  disclaimerModal.classList.remove('hidden');
+  setTimeout(() => disclaimerModal.classList.add('visible'), 10);
+} else {
+  disclaimerModal.classList.add('hidden');
+}
+
+// Enable agree button only when checkbox is ticked
+disclaimerCheck.addEventListener('change', () => {
+  if (disclaimerCheck.checked) {
+    disclaimerAgreeBtn.disabled = false;
+    disclaimerAgreeBtn.style.background    = 'var(--green)';
+    disclaimerAgreeBtn.style.borderColor   = 'var(--green)';
+    disclaimerAgreeBtn.style.color         = '#fff';
+    disclaimerAgreeBtn.style.cursor        = 'pointer';
+    checkLabel.style.borderColor           = 'var(--green)';
+  } else {
+    disclaimerAgreeBtn.disabled = true;
+    disclaimerAgreeBtn.style.background    = 'var(--bg-3)';
+    disclaimerAgreeBtn.style.borderColor   = 'var(--border)';
+    disclaimerAgreeBtn.style.color         = 'var(--text-3)';
+    disclaimerAgreeBtn.style.cursor        = 'not-allowed';
+    checkLabel.style.borderColor           = 'var(--border)';
+  }
+});
+
+disclaimerAgreeBtn.addEventListener('click', () => {
+  sessionStorage.setItem('kasa_disclaimer_agreed', 'true');
+  disclaimerModal.classList.remove('visible');
+  disclaimerModal.style.opacity = '0';
+  disclaimerModal.style.transition = 'opacity 0.4s';
+  setTimeout(() => { disclaimerModal.classList.add('hidden'); disclaimerModal.style.opacity = ''; }, 400);
+});
+
 document.getElementById('welcome').style.display='flex';
 if(window.innerWidth<768) document.getElementById('sidebar').classList.remove('open');

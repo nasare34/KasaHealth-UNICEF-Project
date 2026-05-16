@@ -78,7 +78,7 @@
     </div>
     <div class="unicef-badge">
       <span>A UNICEF Ghana Initiative</span>
-      <span class="partner">Powered by GhanaNLP-Khaya AI</span>
+      <span class="partner">Powered by Khaya AI</span>
     </div>
   </div>
 </aside>
@@ -387,6 +387,46 @@
     </div>
     <p class="history-note">Conversations are saved temporarily in your browser.</p>
     <div id="historyList" class="history-list"></div>
+  </div>
+</div>
+
+<!-- ── DISCLAIMER MODAL (shows on first visit) ──────────────────────────── -->
+<div class="modal-overlay hidden" id="disclaimerModal" style="z-index:9999;background:rgba(0,0,0,0.92)">
+  <div class="modal-card" style="max-width:560px;border-color:rgba(63,185,80,0.4)">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:2.5rem;margin-bottom:10px">🏥</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px">
+        <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="13" stroke="var(--green)" stroke-width="1.5"/>
+          <path d="M9 14h10M14 9v10" stroke="var(--green)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span style="font-family:Space Mono,monospace;font-size:1.2rem;font-weight:700;color:var(--text)">Kasa<span style="color:var(--green)">Health</span></span>
+      </div>
+      <p style="font-size:0.75rem;color:var(--green-light);letter-spacing:0.08em;text-transform:uppercase">A UNICEF Ghana Initiative · Testing Platform</p>
+    </div>
+
+    <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;font-size:0.84rem;line-height:1.7;color:var(--text-2)">
+      <p style="margin-bottom:10px"><strong style="color:var(--text)">Welcome — this is a test version.</strong></p>
+      <p style="margin-bottom:10px">We are testing how well this AI understands young people's questions and gives responses in selected Ghanaian languages on Adolescent Sexual and Reproductive Health (ASRH), including topics such as growing up, changes in your body, feelings, and making healthy choices.</p>
+      <p style="margin-bottom:10px">This platform is <strong>for testing the AI only</strong>. It is <strong>not</strong> designed to give personal health advice, counselling, diagnosis, or treatment. The AI may sometimes give answers that are incomplete, not fully correct, or not suitable for your situation.</p>
+      <p style="margin-bottom:10px">Please use the answers as <strong>general information only</strong>. For personal, serious, or urgent concerns, please speak to a health worker, counsellor, trusted adult, or contact <strong>SHEplus Ghana: 055 054 5672 / 0800 00 11 22</strong>.</p>
+      <p style="margin-bottom:0">To protect yourself, please <strong>do not share</strong> personal details such as your full name, phone number, address, school, exact location, or anything that could identify you.</p>
+    </div>
+
+    <div style="background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.2);border-radius:10px;padding:14px;margin-bottom:20px">
+      <p style="font-size:0.82rem;color:var(--text-2);line-height:1.6">By using this platform, you are helping us improve the AI so it can understand questions and give safer, clearer, and more helpful responses in the future.</p>
+    </div>
+
+    <label id="disclaimerCheckLabel" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:18px;padding:12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;transition:var(--transition)">
+      <input type="checkbox" id="disclaimerCheck" style="width:18px;height:18px;margin-top:2px;accent-color:var(--green);flex-shrink:0">
+      <span style="font-size:0.82rem;color:var(--text-2);line-height:1.5">I understand that this is an AI testing platform, not a health advice or counselling service, and I agree not to share personal details that could identify me.</span>
+    </label>
+
+    <button id="disclaimerAgreeBtn" disabled
+      style="width:100%;padding:13px;border-radius:10px;background:var(--bg-3);border:1px solid var(--border);color:var(--text-3);font-family:Sora,sans-serif;font-size:0.92rem;font-weight:600;cursor:not-allowed;transition:var(--transition)">
+      I Understand — Continue to Kasa Health
+    </button>
+    <p style="text-align:center;font-size:0.72rem;color:var(--text-3);margin-top:10px">Powered by Khaya AI · Ghana NLP · UNICEF Ghana</p>
   </div>
 </div>
 

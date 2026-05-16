@@ -302,3 +302,18 @@ body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text
 .thumb-down.active.rated { border-color: var(--red); color: var(--red); opacity: 1; }
 
 .optional-tag { font-size: 0.7rem; color: var(--text-3); font-weight: 400; }
+
+/* ── Per-message disclaimer ──────────────────────────────────────────────── */
+.msg-disclaimer {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  line-height: 1.5;
+  padding: 6px 10px;
+  margin-top: 6px;
+  background: rgba(63,185,80,0.04);
+  border: 1px solid rgba(63,185,80,0.12);
+  border-radius: 6px;
+  border-left: 3px solid rgba(63,185,80,0.3);
+}
+.msg-disclaimer a { text-decoration: none; }
+.msg-disclaimer a:hover { text-decoration: underline; }
