@@ -3,7 +3,7 @@ const API_BASE = '/api';
 
 // ── Global state ──────────────────────────────────────────────────────────────
 let currentLang    = 'tw';
-let currentSpeaker = 'female';
+let currentSpeaker = 'male_low';
 let playbackRate   = 1.0;
 let isRecording    = false;
 let conversationHistory = [];
@@ -149,6 +149,7 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
 
 document.querySelectorAll('.speaker-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
+    if(btn.disabled || btn.classList.contains('speaker-coming-soon')) return;
     document.querySelectorAll('.speaker-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active'); currentSpeaker = btn.dataset.speaker;
   });
