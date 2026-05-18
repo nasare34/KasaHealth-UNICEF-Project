@@ -202,6 +202,14 @@ document.getElementById('surveyClose').addEventListener('click',closeSurvey);
 document.getElementById('surveyModal').addEventListener('click',(e)=>{ if(e.target===document.getElementById('surveyModal')) closeSurvey(); });
 function closeSurvey() { const m=document.getElementById('surveyModal'); m.classList.remove('visible'); setTimeout(()=>m.classList.add('hidden'),300); }
 
+// Show/hide tester code field
+document.querySelectorAll('input[name="is_tester"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const group = document.getElementById('testerCodeGroup');
+    if(group) group.style.display = radio.value === 'Yes' ? 'block' : 'none';
+  });
+});
+
 document.getElementById('surveyForm').addEventListener('submit',(e)=>{
   e.preventDefault();
   const data = Object.fromEntries(new FormData(document.getElementById('surveyForm')));  // includes name, email, phone, age, gender etc.

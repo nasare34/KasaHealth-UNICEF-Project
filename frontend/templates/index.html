@@ -40,7 +40,7 @@
     <label class="section-label">Voice / Speaker</label>
     <div class="speaker-grid">
       <button class="speaker-btn active" data-speaker="male_low"><span>👨</span> Male Low</button>
-      <button class="speaker-btn speaker-coming-soon" data-speaker="female" disabled title="Female voice coming soon"><span>👩</span> Female <span class="coming-soon-tag"> Coming Soon</span></button>
+      <button class="speaker-btn speaker-coming-soon" data-speaker="female" disabled title="Female voice coming soon"><span>👩</span> Female <span class="coming-soon-tag">Soon</span></button>
       <button class="speaker-btn" data-speaker="male_high"><span>👦</span> Male High</button>
     </div>
   </div>
@@ -102,7 +102,7 @@
   <div class="feature-tabs">
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
     <button class="tab-btn" data-tab="transcribe">🎤 Transcribe</button>
-    <button class="tab-btn" data-tab="agent">🤖 Nkomo-Voice Agent</button>
+    <button class="tab-btn" data-tab="agent">🤖 Voice Agent</button>
   </div>
 
   <!-- ────────────────── TAB: CHAT ──────────────────────────────────────── -->
@@ -350,12 +350,32 @@
       </div>
 
       <div class="form-group">
-        <label>How accurate were answers, speech recognition and translations? *</label>
+        <label>How would you rate Speech Recognition (ASR) &amp; Transcript Quality? *</label>
         <div class="rating-group">
-          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Poor" required><span>😕 Poor</span></label>
-          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Fair"><span>😐 Fair</span></label>
-          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Good"><span>🙂 Good</span></label>
-          <label class="rating-opt"><input type="radio" name="asr_accuracy" value="Excellent"><span>😄 Excellent</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_transcript" value="Poor" required><span>😕 Poor</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_transcript" value="Fair"><span>😐 Fair</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_transcript" value="Good"><span>🙂 Good</span></label>
+          <label class="rating-opt"><input type="radio" name="asr_transcript" value="Excellent"><span>😄 Excellent</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>How would you rate the Text Translation accuracy? *</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="text_translation" value="Poor" required><span>😕 Poor</span></label>
+          <label class="rating-opt"><input type="radio" name="text_translation" value="Fair"><span>😐 Fair</span></label>
+          <label class="rating-opt"><input type="radio" name="text_translation" value="Good"><span>🙂 Good</span></label>
+          <label class="rating-opt"><input type="radio" name="text_translation" value="Excellent"><span>😄 Excellent</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>How would you rate the TTS (Text-to-Speech) voice quality? *</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="tts_quality" value="Poor" required><span>😕 Poor</span></label>
+          <label class="rating-opt"><input type="radio" name="tts_quality" value="Fair"><span>😐 Fair</span></label>
+          <label class="rating-opt"><input type="radio" name="tts_quality" value="Good"><span>🙂 Good</span></label>
+          <label class="rating-opt"><input type="radio" name="tts_quality" value="Excellent"><span>😄 Excellent</span></label>
         </div>
       </div>
 
@@ -371,6 +391,19 @@
           <label class="rating-opt"><input type="radio" name="recommend" value="Maybe"><span>🤔 Maybe</span></label>
           <label class="rating-opt"><input type="radio" name="recommend" value="No"><span>👎 No</span></label>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>Are you a hired tester?</label>
+        <div class="rating-group">
+          <label class="rating-opt"><input type="radio" name="is_tester" value="Yes" id="isTesterYes"><span>✅ Yes</span></label>
+          <label class="rating-opt"><input type="radio" name="is_tester" value="No" checked><span>❌ No</span></label>
+        </div>
+      </div>
+
+      <div class="form-group" id="testerCodeGroup" style="display:none">
+        <label>Tester Code <span class="optional-tag">(enter your assigned code)</span></label>
+        <input type="text" name="tester_code" id="testerCodeInput" placeholder="e.g. TEST001" style="text-transform:uppercase;letter-spacing:0.05em">
       </div>
 
       <button type="submit" class="survey-submit-btn">Submit Feedback</button>

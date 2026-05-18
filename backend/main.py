@@ -112,9 +112,14 @@ class SurveyData(BaseModel):
     location: Optional[str] = None
     ease: Optional[str] = None
     helpful: Optional[str] = None
-    asr_accuracy: Optional[str] = None
+    asr_accuracy: Optional[str] = None   # kept for backward compat
+    asr_transcript: Optional[str] = None  # ASR & Transcript Quality
+    text_translation: Optional[str] = None  # Text Translation accuracy
+    tts_quality: Optional[str] = None    # TTS voice quality
     feedback: Optional[str] = None
     recommend: Optional[str] = None
+    is_tester: Optional[str] = None      # Yes / No
+    tester_code: Optional[str] = None    # tester code if applicable
     timestamp: Optional[str] = None
     language: Optional[str] = None
     sessionId: Optional[str] = None
@@ -273,6 +278,33 @@ async def debug_tts():
         r = await c.get("https://translation-api.ghananlp.org/tts/v2/speakers",
                         headers={"Ocp-Apim-Subscription-Key": KHAYA_TTS_KEY})
     return {"status": r.status_code, "body": r.json() if r.status_code == 200 else r.text}
+
+@app.get("/debug/tts-v3-speakers")
+async def debug_tts_v3():
+    """Check what TTS v3 offers — speakers, languages, voices"""
+    results = {}
+    async with httpx.AsyncClient(timeout=15) as c:
+        for path in ["speakers", "languages", "voices"]:
+            r = await c.get(f"https://translation-api.ghananlp.org/tts/v3/{path}",
+                            headers={"Ocp-Apim-Subscription-Key": KHAYA_TTS_KEY})
+            results[path] = {"status": r.status_code, "body": r.json() if r.status_code == 200 else r.text[:300]}
+    return results
+
+@app.get("/debug/tts-v3-test")
+async def debug_tts_v3_test(text: str = "Medaase", language: str = "twi", speaker: str = "female"):
+    """Test TTS v3 with a given text, language and speaker"""
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(
+            "https://translation-api.ghananlp.org/tts/v3/synthesize",
+            headers={"Ocp-Apim-Subscription-Key": KHAYA_TTS_KEY, "Content-Type": "application/json"},
+            json={"text": text, "language": language, "speaker": speaker}
+        )
+    return {
+        "status": r.status_code,
+        "content_type": r.headers.get("content-type", ""),
+        "body_snippet": r.text[:300] if r.status_code != 200 else "audio returned",
+        "audio_size": len(r.content) if r.status_code == 200 else 0,
+    }
 
 @app.get("/debug/translate-languages")
 async def debug_translate():
@@ -725,10 +757,14 @@ async def save_survey(data: SurveyData):
         "entry.1812798526": data.location or "",
         "entry.569805250":  data.ease or "",
         "entry.1018906480": data.helpful or "",
-        "entry.333168962":  data.asr_accuracy or "",
         "entry.1291914333": data.feedback or "",
         "entry.990261598":  data.recommend or "",
         "entry.1640635370": LANG_MAP.get(data.language, data.language or ""),
+        "entry.399463896":  data.asr_transcript or "",
+        "entry.572974212":  data.text_translation or "",
+        "entry.857550320":  data.tts_quality or "",
+        "entry.237791033":  data.is_tester or "",
+        "entry.285528117":  data.tester_code or "",
     }
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
