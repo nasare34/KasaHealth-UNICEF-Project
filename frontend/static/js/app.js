@@ -778,6 +778,18 @@ function showProcessing(text){ document.getElementById('processingText').textCon
 function setProcessingText(text){ document.getElementById('processingText').textContent=text; }
 function hideProcessing(){ document.getElementById('processingOverlay').classList.add('hidden'); }
 function setStatus(state){ const d=document.getElementById('statusDot');d.className='status-dot';if(state==='busy')d.classList.add('busy');if(state==='error')d.classList.add('error'); }
+
+// ── Health ping — check backend is online ─────────────────────────────────────
+async function pingBackend() {
+  try {
+    const r = await fetch(`${API_BASE}/languages`, { method: 'GET' });
+    setStatus(r.ok ? 'ok' : 'error');
+  } catch {
+    setStatus('error');
+  }
+}
+pingBackend();                          // check on load
+setInterval(pingBackend, 30000);        // re-check every 30 seconds
 function scrollToBottom(){ requestAnimationFrame(()=>{ const ca=document.getElementById('chatArea');ca.scrollTop=ca.scrollHeight; }); }
 function showError(msg){ const d=document.createElement('div');d.className='message';d.innerHTML=`<div class="msg-avatar" style="background:rgba(248,81,73,0.1);border-color:var(--red)">⚠️</div><div class="msg-content"><div class="msg-bubble" style="border-color:rgba(248,81,73,0.3);color:var(--red)">${msg}</div></div>`;document.getElementById('messages').appendChild(d);scrollToBottom(); }
 
