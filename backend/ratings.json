@@ -11,5 +11,31 @@
     "session_id": "1778678120220",
     "timestamp": "2026-05-13T13:16:43.921Z",
     "id": "07fbdba7"
+  },
+  {
+    "rating": "down",
+    "language": "tw",
+    "context": "correction",
+    "question_original": "Hi",
+    "question_english": "Hi",
+    "answer_local": "Hello. Yɛma wo akwaaba ba Kasa Akwahosan. Mewɔ ha sɛ mɛboa ma wɔabua wo nsɛmmisa a ɛfa wo nipadua, w'apɔmuden, ne wo ayɔnkofa ho. Kae sɛ, saa beaeɛ yi yɛ baabi a ɛyɛ dwoodwoo sɛ wobɛbisa biribiara, na mɛyɛ deɛ mɛtumi biara de nsɛm a ɛbɛboa wo ama woanya bi. Sɛ w'ankasa wowɔ biribi a ɛhaw wo a, ɛbɛyɛ papa bere nyinaa sɛ wo ne apɔmuden adwumayɛfo bi bɛkasa akɔhwehwɛ afotu. Wobɛtumi nso akɔ Sheplus Ghana wɔ 055 054 5672 anaa 080 00 1122 mu ama no aboa wo. Dɛn na ɛwɔ w'adwenem?",
+    "answer_english": "Hello. Welcome to Kasa Health. I'm here to help answer your questions about your body, health, and relationships. Remember, this is a safe space to ask anything, and I'll do my best to provide you with helpful information. If you have any personal concerns, it's always best to speak with a health worker for advice. You can also reach out to SHEplus Ghana at 055 054 5672 or 0800 00 11 22 for support. What's on your mind?",
+    "reason": "Too long",
+    "session_id": "1779132421185",
+    "timestamp": "2026-05-18T19:28:59.636Z",
+    "id": "fd89b99e"
+  },
+  {
+    "rating": "up",
+    "language": "tw",
+    "context": "chat",
+    "question_original": "How can I protect myself from STIs and HIV?",
+    "question_english": "How can I protect myself from STIs and HIV?",
+    "answer_local": "Nea ɛbɛyɛ na woabɔ wo ho ban afi STI ne HIV ho no, ɛho hia sɛ wode kɔndɔm di dwuma yiye na ɛkɔ so daa. Afei nso, ɛsɛ sɛ wɔyɛ wo nhwehwɛmu mpɛn pii ansa na woatumi akɔ HIV mmoawa yi bi, na wɔhyɛ wo hokani no nkuran ma ɔno nso nyɛ saa ara. Wotwe wo ho firi nna mu anaa nna mu nneyɛeɛ a wobɛtwentwɛn so no nso bɛtumi ama asiane a ɛwɔ wo mu no so ate. Bio nso, sɛ wo ne obi a wɔasɔ no ahwɛ na onni STI ne HIV wɔ abusuabɔ a wodi nokware mu a, ebetumi aboa. Sɛ wowɔ nsɛmmisa bi a ɛha wo a, wobɛtumi akɔ Sheplus Ghana wɔ 055054 5672 anaa 0800 00 11 22 akɔhwehwɛ mmoa ne akwankyerɛ. Kae sɛ wo ne apɔmuden adwumayɛfoɔ bɛkasa ama wɔn ankasa afotuo.",
+    "answer_english": "To protect yourself from STIs and HIV, it's essential to practice safe sex by using condoms correctly and consistently. You should also get tested regularly for STIs and HIV, and encourage your partner to do the same. Abstaining from sex or delaying sexual activity can also reduce your risk. Additionally, being in a mutually faithful relationship with someone who has been tested and is free of STIs and HIV can help. If you have any concerns or questions, you can reach out to SHEplus Ghana at 055 054 5672 or 0800 00 11 22 for support and guidance. Remember to speak with a health worker for personal advice.",
+    "reason": "",
+    "session_id": "1779132421185",
+    "timestamp": "2026-05-18T19:30:40.761Z",
+    "id": "79586f50"
   }
 ]

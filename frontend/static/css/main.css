@@ -296,8 +296,9 @@ body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text
   transition: var(--transition); color: var(--text-3);
   line-height: 1.4;
 }
-.thumb-btn:hover:not(.rated) { border-color: var(--green); transform: scale(1.1); }
-.thumb-btn.rated { cursor: default; opacity: 0.5; }
+.thumb-btn:hover:not(.active) { border-color: var(--green); transform: scale(1.1); }
+.thumb-btn.rated { cursor: pointer; opacity: 0.4; }
+.thumb-btn.rated.active { opacity: 1; }
 .thumb-up.active.rated  { border-color: var(--green); color: var(--green); opacity: 1; }
 .thumb-down.active.rated { border-color: var(--red); color: var(--red); opacity: 1; }
 

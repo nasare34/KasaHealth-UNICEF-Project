@@ -1,0 +1,18 @@
+[
+  {
+    "id": "89bf8c27",
+    "timestamp": "2026-05-18T19:29:00.912885",
+    "rating": "down",
+    "language": "tw",
+    "language_name": "Twi",
+    "question_original": "Hi",
+    "question_english": "Hi",
+    "answer_local": "Hello. Yɛma wo akwaaba ba Kasa Akwahosan. Mewɔ ha sɛ mɛboa ma wɔabua wo nsɛmmisa a ɛfa wo nipadua, w'apɔmuden, ne wo ayɔnkofa ho. Kae sɛ, saa beaeɛ yi yɛ baabi a ɛyɛ dwoodwoo sɛ wobɛbisa biribiara, na mɛyɛ deɛ mɛtumi biara de nsɛm a ɛbɛboa wo ama woanya bi. Sɛ w'ankasa wowɔ biribi a ɛhaw wo a, ɛbɛyɛ papa bere nyinaa sɛ wo ne apɔmuden adwumayɛfo bi bɛkasa akɔhwehwɛ afotu. Wobɛtumi nso akɔ Sheplus Ghana wɔ 055 054 5672 anaa 080 00 1122 mu ama no aboa wo. Dɛn na ɛwɔ w'adwenem?",
+    "answer_english": "Hello. Welcome to Kasa Health. I'm here to help answer your questions about your body, health, and relationships. Remember, this is a safe space to ask anything, and I'll do my best to provide you with helpful information. If you have any personal concerns, it's always best to speak with a health worker for advice. You can also reach out to SHEplus Ghana at 055 054 5672 or 0800 00 11 22 for support. What's on your mind?",
+    "correction_text": "Test",
+    "reason": "Too long",
+    "session_id": "1779132421185",
+    "audio_url": "https://huggingface.co/datasets/nasare34/kasa-health-feedback/resolve/main/feedback/20260518_192900_89bf8c27_tw.wav",
+    "metadata_url": "https://huggingface.co/datasets/nasare34/kasa-health-feedback/resolve/main/feedback/20260518_192900_89bf8c27_tw.json"
+  }
+]

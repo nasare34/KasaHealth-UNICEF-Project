@@ -407,6 +407,7 @@ let _fbAudioBlob    = null;
 
 // ── makeThumbs — reusable thumbs up/down widget for any output ─────────────────
 // context: 'chat' | 'agent' | 'transcribe'
+// Allows: changing rating, re-rating anytime, no permanent lock
 function makeThumbs(extras, text, lang, context) {
   const wrap = document.createElement('div');
   wrap.className = 'thumbs-wrap';
@@ -419,19 +420,38 @@ function makeThumbs(extras, text, lang, context) {
   thumbDown.className = 'thumb-btn thumb-down';
   thumbDown.innerHTML = '👎'; thumbDown.title = 'This needs improvement';
 
+  let currentRating = null; // track current rating: null | 'up' | 'down'
+
+  function setRating(rating) {
+    currentRating = rating;
+    // Reset both buttons first
+    thumbUp.classList.remove('rated', 'active');
+    thumbDown.classList.remove('rated', 'active');
+    thumbUp.innerHTML = '👍';
+    thumbDown.innerHTML = '👎';
+    // Apply active state to selected
+    if (rating === 'up') {
+      thumbUp.classList.add('rated', 'active');
+      thumbUp.innerHTML = '👍✓';
+    } else if (rating === 'down') {
+      thumbDown.classList.add('rated', 'active');
+      thumbDown.innerHTML = '👎✓';
+    }
+  }
+
   thumbUp.addEventListener('click', () => {
-    if(thumbUp.classList.contains('rated')) return;
-    thumbUp.classList.add('rated','active'); thumbDown.classList.add('rated');
-    thumbUp.innerHTML = '👍✓';
-    // Track thumbs UP
+    if (currentRating === 'up') return; // already rated up, no change
+    setRating('up');
     submitRating('up', extras, text, lang, context, '');
   });
 
   thumbDown.addEventListener('click', () => {
-    if(thumbDown.classList.contains('rated')) return;
-    thumbDown.classList.add('rated','active'); thumbUp.classList.add('rated');
-    thumbDown.innerHTML = '👎✓';
-    // Open correction modal for thumbs DOWN
+    if (currentRating === 'down') {
+      // Already rated down — allow re-opening correction modal
+      openFeedbackModal(extras, text, lang);
+      return;
+    }
+    setRating('down');
     openFeedbackModal(extras, text, lang);
   });
 
@@ -782,14 +802,14 @@ function setStatus(state){ const d=document.getElementById('statusDot');d.classN
 // ── Health ping — check backend is online ─────────────────────────────────────
 async function pingBackend() {
   try {
-    const r = await fetch(`${API_BASE}/languages`, { method: 'GET' });
+    const r = await fetch(`${API_BASE}/languages`, { method: 'GET', signal: AbortSignal.timeout(5000) });
     setStatus(r.ok ? 'ok' : 'error');
   } catch {
     setStatus('error');
   }
 }
-pingBackend();                          // check on load
-setInterval(pingBackend, 30000);        // re-check every 30 seconds
+setTimeout(pingBackend, 2000);          // wait 2s after load before first ping
+setInterval(pingBackend, 120000);       // re-check every 2 minutes (Starter plan - always on)
 function scrollToBottom(){ requestAnimationFrame(()=>{ const ca=document.getElementById('chatArea');ca.scrollTop=ca.scrollHeight; }); }
 function showError(msg){ const d=document.createElement('div');d.className='message';d.innerHTML=`<div class="msg-avatar" style="background:rgba(248,81,73,0.1);border-color:var(--red)">⚠️</div><div class="msg-content"><div class="msg-bubble" style="border-color:rgba(248,81,73,0.3);color:var(--red)">${msg}</div></div>`;document.getElementById('messages').appendChild(d);scrollToBottom(); }
 

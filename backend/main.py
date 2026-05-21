@@ -783,8 +783,10 @@ async def test_survey():
         "entry.1778908494": "test@test.com", "entry.1268576577": "19",
         "entry.1286595230": "Male", "entry.1812798526": "Ashanti Region",
         "entry.569805250": "Very Easy", "entry.1018906480": "Very helpful",
-        "entry.333168962": "Excellent", "entry.1291914333": "Test submission",
+        "entry.399463896": "Excellent", "entry.572974212": "Excellent",
+        "entry.857550320": "Good", "entry.1291914333": "Test submission",
         "entry.990261598": "Yes", "entry.1640635370": "Twi",
+        "entry.237791033": "No", "entry.285528117": "",
     }
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
