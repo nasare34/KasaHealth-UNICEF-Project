@@ -3,7 +3,7 @@ const API_BASE = '/api';
 
 // ── Global state ──────────────────────────────────────────────────────────────
 let currentLang    = 'tw';
-let currentSpeaker = 'male_low';
+let currentSpeaker = 'female';
 let playbackRate   = 1.0;
 let isRecording    = false;
 let conversationHistory = [];
@@ -149,7 +149,6 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
 
 document.querySelectorAll('.speaker-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    if(btn.disabled || btn.classList.contains('speaker-coming-soon')) return;
     document.querySelectorAll('.speaker-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active'); currentSpeaker = btn.dataset.speaker;
   });
@@ -202,14 +201,6 @@ document.getElementById('surveyClose').addEventListener('click',closeSurvey);
 document.getElementById('surveyModal').addEventListener('click',(e)=>{ if(e.target===document.getElementById('surveyModal')) closeSurvey(); });
 function closeSurvey() { const m=document.getElementById('surveyModal'); m.classList.remove('visible'); setTimeout(()=>m.classList.add('hidden'),300); }
 
-// Show/hide tester code field
-document.querySelectorAll('input[name="is_tester"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const group = document.getElementById('testerCodeGroup');
-    if(group) group.style.display = radio.value === 'Yes' ? 'block' : 'none';
-  });
-});
-
 document.getElementById('surveyForm').addEventListener('submit',(e)=>{
   e.preventDefault();
   const data = Object.fromEntries(new FormData(document.getElementById('surveyForm')));  // includes name, email, phone, age, gender etc.
@@ -217,7 +208,22 @@ document.getElementById('surveyForm').addEventListener('submit',(e)=>{
   const surveys=JSON.parse(localStorage.getItem('kasa_surveys')||'[]'); surveys.push(data);
   localStorage.setItem('kasa_surveys',JSON.stringify(surveys));
   fetch(`${API_BASE}/survey`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{});
-  document.getElementById('surveyForm').innerHTML=`<div class="survey-thanks"><div class="thanks-icon">🙏</div><h3>Thank you!</h3><p>Your feedback helps us improve health information for young people in Ghana.</p><button type="button" class="survey-submit-btn" onclick="closeSurvey()">Close</button></div>`;
+  // Show thank you message temporarily then reset form for next submission
+  const form = document.getElementById('surveyForm');
+  const originalHTML = form.innerHTML;
+  form.innerHTML=`<div class="survey-thanks"><div class="thanks-icon">🙏</div><h3>Thank you!</h3><p>Your feedback helps us improve health information for young people in Ghana.</p><button type="button" class="survey-submit-btn" onclick="closeSurvey()">Close</button></div>`;
+  setTimeout(()=>{
+    form.innerHTML = originalHTML;
+    form.reset();
+    // Re-attach tester code toggle after form is restored
+    document.querySelectorAll('input[name="is_tester"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const group = document.getElementById('testerCodeGroup');
+        if(group) group.style.display = radio.value === 'Yes' ? 'block' : 'none';
+      });
+    });
+    document.getElementById('testerCodeGroup').style.display = 'none';
+  }, 3000);
 });
 
 // ── History panel ─────────────────────────────────────────────────────────────
@@ -775,7 +781,6 @@ const checkLabel        = document.getElementById('disclaimerCheckLabel');
 // Only skip if user agreed in this same browser session (not across sessions)
 if (!sessionStorage.getItem('kasa_disclaimer_agreed')) {
   disclaimerModal.classList.remove('hidden');
-  setTimeout(() => disclaimerModal.classList.add('visible'), 10);
 } else {
   disclaimerModal.classList.add('hidden');
 }
@@ -801,7 +806,6 @@ disclaimerCheck.addEventListener('change', () => {
 
 disclaimerAgreeBtn.addEventListener('click', () => {
   sessionStorage.setItem('kasa_disclaimer_agreed', 'true');
-  disclaimerModal.classList.remove('visible');
   disclaimerModal.style.opacity = '0';
   disclaimerModal.style.transition = 'opacity 0.4s';
   setTimeout(() => { disclaimerModal.classList.add('hidden'); disclaimerModal.style.opacity = ''; }, 400);
