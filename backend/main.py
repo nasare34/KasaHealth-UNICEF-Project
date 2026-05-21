@@ -748,38 +748,41 @@ async def save_survey(data: SurveyData):
     surveys.append(data.model_dump())
     survey_file.write_text(json_lib.dumps(surveys, indent=2, ensure_ascii=False))
 
-    # Build form data - only include fields that have values (empty string causes 400)
-    form_data = {}
-    def add(entry, value):
+    # Build form data - skip empty optional fields, always include required ones
+    def add(d, key, value):
         v = (value or "").strip()
         if v:
-            form_data[entry] = v
+            d[key] = v
 
-    add("entry.613146582",  data.name)
-    add("entry.1273357101", data.phone)
-    add("entry.1778908494", data.email)
-    add("entry.1268576577", data.age)
-    add("entry.1286595230", data.gender if data.gender != "Other" else "Other")
-    add("entry.1812798526", data.location if data.location != "Other" else "Other")
-    add("entry.569805250",  data.ease)
-    add("entry.1018906480", data.helpful)
-    add("entry.1291914333", data.feedback)
-    add("entry.990261598",  data.recommend)
-    add("entry.1640635370", LANG_MAP.get(data.language, data.language or ""))
-    add("entry.399463896",  data.asr_transcript)
-    add("entry.572974212",  data.text_translation)
-    add("entry.857550320",  data.tts_quality)
-    add("entry.237791033",  data.is_tester)
-    add("entry.285528117",  data.tester_code)
+    form_data = {}
+    add(form_data, "entry.613146582",  data.name)
+    add(form_data, "entry.1273357101", data.phone)
+    add(form_data, "entry.1778908494", data.email)
+    add(form_data, "entry.1268576577", data.age)
+    add(form_data, "entry.1286595230", data.gender)
+    add(form_data, "entry.1812798526", data.location)
+    add(form_data, "entry.569805250",  data.ease)
+    add(form_data, "entry.1018906480", data.helpful)
+    add(form_data, "entry.1291914333", data.feedback)
+    add(form_data, "entry.990261598",  data.recommend)
+    add(form_data, "entry.1640635370", LANG_MAP.get(data.language, data.language or ""))
+    add(form_data, "entry.399463896",  data.asr_transcript)
+    add(form_data, "entry.572974212",  data.text_translation)
+    add(form_data, "entry.857550320",  data.tts_quality)
+    add(form_data, "entry.237791033",  data.is_tester)
+    # Tester code is marked required in Google Form - send "N/A" when not a tester
+    tester_code = data.tester_code if (data.is_tester or "").strip() == "Yes" else "N/A"
+    form_data["entry.285528117"] = tester_code
 
     logger.info(f"Submitting to Google Form: {form_data}")
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             r = await client.post(GOOGLE_FORM_URL, data=form_data,
                                   headers={"Content-Type": "application/x-www-form-urlencoded"})
-            logger.info(f"Google Form: {r.status_code} | body snippet: {r.text[:200]}")
+            logger.info(f"Google Form: {r.status_code} | snippet: {r.text[:150]}")
     except Exception as e:
         logger.warning(f"Google Form failed: {e}")
+
     return {"status": "saved", "total": len(surveys)}
 
 @app.get("/survey/test")
