@@ -422,7 +422,8 @@ let _fbAudioBlob    = null;
 // Allows: changing rating, re-rating anytime, no permanent lock
 function makeThumbs(extras, text, lang, context) {
   const wrap = document.createElement('div');
-  wrap.className = 'thumbs-wrap';
+  wrap.className = 'thumbs-wrap thumb-wrap';
+  wrap.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
 
   const thumbUp = document.createElement('button');
   thumbUp.className = 'thumb-btn thumb-up';
@@ -432,118 +433,89 @@ function makeThumbs(extras, text, lang, context) {
   thumbDown.className = 'thumb-btn thumb-down';
   thumbDown.innerHTML = '👎'; thumbDown.title = 'This needs improvement';
 
-  let currentRating = null; // track current rating: null | 'up' | 'down'
+  // Inline tester code row shown after 👍 click - user must press OK to submit
+  const codeRow = document.createElement('div');
+  codeRow.style.cssText = 'display:none;align-items:center;gap:6px;flex-basis:100%;margin-top:6px;';
+  codeRow.innerHTML = `
+    <span style="font-size:0.72rem;color:var(--text-2)">Tester code (optional):</span>
+    <input type="text" placeholder="e.g. TEST001"
+      style="font-size:0.75rem;padding:3px 8px;border-radius:6px;border:1px solid var(--border);
+             background:var(--bg-3);color:var(--text);text-transform:uppercase;width:110px;outline:none">
+    <button type="button" style="font-size:0.72rem;padding:3px 12px;border-radius:6px;
+      background:var(--green-light);color:#000;border:none;cursor:pointer;font-weight:600">Submit ✓</button>
+    <button type="button" style="font-size:0.72rem;padding:3px 10px;border-radius:6px;
+      background:var(--bg-3);color:var(--text-2);border:1px solid var(--border);cursor:pointer">Skip</button>
+  `;
+  const codeInput = codeRow.querySelectorAll('input')[0];
+  const submitBtn = codeRow.querySelectorAll('button')[0];
+  const skipBtn   = codeRow.querySelectorAll('button')[1];
 
-  function setRating(rating) {
+  let currentRating = null;
+  let upSubmitted   = false;
+
+  function setVisual(rating) {
     currentRating = rating;
-    // Reset both buttons first
-    thumbUp.classList.remove('rated', 'active');
-    thumbDown.classList.remove('rated', 'active');
-    thumbUp.innerHTML = '👍';
+    thumbUp.classList.remove('rated','active');
+    thumbDown.classList.remove('rated','active');
+    thumbUp.innerHTML   = '👍';
     thumbDown.innerHTML = '👎';
-    // Apply active state to selected
-    if (rating === 'up') {
-      thumbUp.classList.add('rated', 'active');
-      thumbUp.innerHTML = '👍✓';
-    } else if (rating === 'down') {
-      thumbDown.classList.add('rated', 'active');
-      thumbDown.innerHTML = '👎✓';
-    }
+    if (rating === 'up')   { thumbUp.classList.add('rated','active');   thumbUp.innerHTML   = '👍✓'; }
+    if (rating === 'down') { thumbDown.classList.add('rated','active'); thumbDown.innerHTML = '👎✓'; }
   }
 
+  function doSubmitUp(code) {
+    if (upSubmitted) return;
+    upSubmitted = true;
+    codeRow.style.display = 'none';
+    submitRating('up', extras, text, lang, context, '', (code||'').toUpperCase().trim());
+  }
+
+  // ── Thumbs UP ──
   thumbUp.addEventListener('click', () => {
-    if (currentRating === 'up') return; // already rated up
-    // Show visual immediately so user gets feedback
-    setRating('up');
-    // Then show tooltip for optional tester code
-    showTesterTooltip(thumbUp, (testerCode) => {
-      submitRating('up', extras, text, lang, context, '', testerCode);
-    });
+    if (currentRating === 'up' && upSubmitted) return; // already fully submitted
+    // Reset so user can re-open code row if they click again before submitting
+    upSubmitted = false;
+    setVisual('up');
+    // Show the code row — user must press Submit or Skip manually
+    codeRow.style.display = 'flex';
+    codeInput.value = '';
+    setTimeout(() => codeInput.focus(), 50);
   });
 
+  submitBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    doSubmitUp(codeInput.value);
+  });
+
+  skipBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    doSubmitUp('');
+  });
+
+  codeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.stopPropagation(); doSubmitUp(codeInput.value); }
+  });
+
+  codeInput.addEventListener('click', (e) => e.stopPropagation());
+
+  // ── Thumbs DOWN ──
   thumbDown.addEventListener('click', () => {
-    // Always open modal on thumbs down (including switching from up)
-    // Re-clicking thumbs down when already down also reopens modal
-    setRating('down');
+    // If 👍 code row is open and not yet submitted, cancel it
+    if (currentRating === 'up' && !upSubmitted) {
+      upSubmitted = true; // cancel the up rating
+      codeRow.style.display = 'none';
+    }
+    setVisual('down');
+    // Open feedback modal — submitRating('down',...) only fires when user clicks Submit in modal
     openFeedbackModal(extras, text, lang);
   });
 
-  wrap.classList.add('thumb-wrap');
-  wrap.appendChild(thumbUp); wrap.appendChild(thumbDown);
+  wrap.appendChild(thumbUp);
+  wrap.appendChild(thumbDown);
+  wrap.appendChild(codeRow);
   return wrap;
 }
 
-
-// ── Tester tooltip for thumbs up ───────────────────────────────────────────────
-function showTesterTooltip(anchorEl, onSubmit) {
-  // Remove any existing tooltip AND its lingering outside click handler
-  const existing = document.getElementById('testerTooltip');
-  if (existing) existing.remove();
-  if (window._testerTooltipOutsideClick) {
-    document.removeEventListener('click', window._testerTooltipOutsideClick);
-    window._testerTooltipOutsideClick = null;
-  }
-
-  const tooltip = document.createElement('div');
-  tooltip.id = 'testerTooltip';
-  tooltip.className = 'tester-tooltip';
-  tooltip.innerHTML = `
-    <p class="tester-tooltip-label">Are you a hired tester?</p>
-    <input type="text" id="tooltipTesterCode" placeholder="Enter code (optional)"
-      style="text-transform:uppercase;letter-spacing:0.05em">
-    <div class="tester-tooltip-btns">
-      <button type="button" id="tooltipSkip">Skip</button>
-      <button type="button" id="tooltipSubmit" class="primary">Submit ✓</button>
-    </div>
-  `;
-
-  const wrap = anchorEl.closest('.thumb-wrap') || anchorEl.parentElement;
-  wrap.style.position = 'relative';
-  wrap.appendChild(tooltip);
-  tooltip.style.position = 'absolute';
-  tooltip.style.top = (anchorEl.offsetHeight + 6) + 'px';
-  tooltip.style.left = '0px';
-  tooltip.style.zIndex = '9999';
-
-  setTimeout(() => document.getElementById('tooltipTesterCode')?.focus(), 50);
-
-  let dismissed = false;
-  function dismiss(code, skipSubmit) {
-    if (dismissed) return;
-    dismissed = true;
-    tooltip.remove();
-    if (window._testerTooltipOutsideClick) {
-      document.removeEventListener('click', window._testerTooltipOutsideClick);
-      window._testerTooltipOutsideClick = null;
-    }
-    if (!skipSubmit) onSubmit(code || '');
-  }
-
-  document.getElementById('tooltipSubmit').addEventListener('click', (e) => {
-    e.stopPropagation();
-    dismiss((document.getElementById('tooltipTesterCode')?.value||'').toUpperCase().trim());
-  });
-  document.getElementById('tooltipSkip').addEventListener('click', (e) => {
-    e.stopPropagation();
-    dismiss('');
-  });
-  document.getElementById('tooltipTesterCode').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.stopPropagation(); dismiss((e.target.value||'').toUpperCase().trim()); }
-  });
-  document.getElementById('tooltipTesterCode').addEventListener('click', (e) => e.stopPropagation());
-
-  // Register outside click handler on window so it can be cleaned up
-  window._testerTooltipOutsideClick = function(e) {
-    if (!tooltip.contains(e.target) && e.target !== anchorEl) {
-      const isThumbDown = e.target.closest('.thumb-down');
-      // If clicking thumbs down, close tooltip without submitting up rating
-      dismiss('', !!isThumbDown);
-    }
-  };
-  setTimeout(() => {
-    document.addEventListener('click', window._testerTooltipOutsideClick);
-  }, 150);
-}
 
 // ── submitRating — handles BOTH up and down ratings ────────────────────────────
 async function submitRating(rating, extras, text, lang, context, reason, testerCode='') {
@@ -585,7 +557,15 @@ function openFeedbackModal(extras, text, lang) {
 
 function closeFeedbackModal() {
   const m = document.getElementById('feedbackModal');
-  m.classList.remove('visible'); setTimeout(()=>m.classList.add('hidden'),300);
+  m.classList.remove('visible');
+  setTimeout(() => {
+    m.classList.add('hidden');
+    // Remove thank-you overlay so form is ready for next use
+    document.getElementById('fbThanksOverlay')?.remove();
+    // Re-enable submit button
+    const btn = document.getElementById('fbSubmitBtn');
+    if (btn) { btn.textContent = 'Submit Correction'; btn.disabled = false; }
+  }, 300);
 }
 
 async function submitThumbsFeedback(rating, extras, text, lang, audioBlob) {
@@ -642,20 +622,24 @@ document.getElementById('feedbackModal')?.addEventListener('click',(e)=>{ if(e.t
 document.getElementById('fbClose')?.addEventListener('click', closeFeedbackModal);
 
 document.getElementById('fbSubmitBtn')?.addEventListener('click', async ()=>{
-  document.getElementById('fbSubmitBtn').textContent = 'Submitting…';
-  document.getElementById('fbSubmitBtn').disabled = true;
+  const btn = document.getElementById('fbSubmitBtn');
+  if (btn.disabled) return;
+  btn.textContent = 'Submitting…';
+  btn.disabled = true;
   const reason = document.getElementById('fbReason')?.value || '';
   const fbTesterCode = (document.getElementById('fbTesterCode')?.value || '').toUpperCase().trim();
-  // Track thumbs down rating
   await submitRating('down', _feedbackExtras, _feedbackText, _feedbackLang, 'correction', reason, fbTesterCode);
   await submitThumbsFeedback('down', _feedbackExtras, _feedbackText, _feedbackLang, _fbAudioBlob);
-  document.getElementById('feedbackModal').innerHTML = `
-    <div class="modal-card" style="text-align:center;padding:40px 24px">
-      <div style="font-size:2rem;margin-bottom:12px">🙏</div>
-      <h3 style="color:var(--green-light);margin-bottom:8px">Thank you!</h3>
-      <p style="color:var(--text-2);font-size:0.87rem;line-height:1.6">Your correction helps us improve Kasa Health for everyone.</p>
-      <button onclick="closeFeedbackModal()" class="survey-submit-btn" style="margin-top:20px;width:auto;padding:10px 28px">Close</button>
-    </div>`;
+  // Show thank-you overlay inside modal without destroying the form HTML
+  const overlay = document.createElement('div');
+  overlay.id = 'fbThanksOverlay';
+  overlay.style.cssText = 'position:absolute;inset:0;background:var(--bg-2);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;z-index:10;';
+  overlay.innerHTML = `<div style="font-size:2.5rem">🙏</div>
+    <h3 style="color:var(--green-light);margin:12px 0 8px">Thank you!</h3>
+    <p style="color:var(--text-2);font-size:0.85rem;text-align:center;padding:0 24px">Your correction helps improve Kasa Health.</p>
+    <button onclick="closeFeedbackModal()" class="survey-submit-btn" style="margin-top:20px;width:auto;padding:10px 28px">Close</button>`;
+  const card = document.querySelector('#feedbackModal .modal-card');
+  if (card) { card.style.position = 'relative'; card.appendChild(overlay); }
   setTimeout(closeFeedbackModal, 3000);
 });
 
