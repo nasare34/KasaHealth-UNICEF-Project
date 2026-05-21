@@ -7,3 +7,6 @@ __pycache__/
 venv/
 __pycache__/
 .DS_Store
+backend/feedback.json
+backend/ratings.json
+backend/surveys.json
