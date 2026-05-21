@@ -452,27 +452,101 @@ function makeThumbs(extras, text, lang, context) {
   }
 
   thumbUp.addEventListener('click', () => {
-    if (currentRating === 'up') return; // already rated up, no change
+    if (currentRating === 'up') return; // already rated up
+    // Show visual immediately so user gets feedback
     setRating('up');
-    submitRating('up', extras, text, lang, context, '');
+    // Then show tooltip for optional tester code
+    showTesterTooltip(thumbUp, (testerCode) => {
+      submitRating('up', extras, text, lang, context, '', testerCode);
+    });
   });
 
   thumbDown.addEventListener('click', () => {
-    if (currentRating === 'down') {
-      // Already rated down — allow re-opening correction modal
-      openFeedbackModal(extras, text, lang);
-      return;
-    }
+    // Always open modal on thumbs down (including switching from up)
+    // Re-clicking thumbs down when already down also reopens modal
     setRating('down');
     openFeedbackModal(extras, text, lang);
   });
 
+  wrap.classList.add('thumb-wrap');
   wrap.appendChild(thumbUp); wrap.appendChild(thumbDown);
   return wrap;
 }
 
+
+// ── Tester tooltip for thumbs up ───────────────────────────────────────────────
+function showTesterTooltip(anchorEl, onSubmit) {
+  // Remove any existing tooltip AND its lingering outside click handler
+  const existing = document.getElementById('testerTooltip');
+  if (existing) existing.remove();
+  if (window._testerTooltipOutsideClick) {
+    document.removeEventListener('click', window._testerTooltipOutsideClick);
+    window._testerTooltipOutsideClick = null;
+  }
+
+  const tooltip = document.createElement('div');
+  tooltip.id = 'testerTooltip';
+  tooltip.className = 'tester-tooltip';
+  tooltip.innerHTML = `
+    <p class="tester-tooltip-label">Are you a hired tester?</p>
+    <input type="text" id="tooltipTesterCode" placeholder="Enter code (optional)"
+      style="text-transform:uppercase;letter-spacing:0.05em">
+    <div class="tester-tooltip-btns">
+      <button type="button" id="tooltipSkip">Skip</button>
+      <button type="button" id="tooltipSubmit" class="primary">Submit ✓</button>
+    </div>
+  `;
+
+  const wrap = anchorEl.closest('.thumb-wrap') || anchorEl.parentElement;
+  wrap.style.position = 'relative';
+  wrap.appendChild(tooltip);
+  tooltip.style.position = 'absolute';
+  tooltip.style.top = (anchorEl.offsetHeight + 6) + 'px';
+  tooltip.style.left = '0px';
+  tooltip.style.zIndex = '9999';
+
+  setTimeout(() => document.getElementById('tooltipTesterCode')?.focus(), 50);
+
+  let dismissed = false;
+  function dismiss(code, skipSubmit) {
+    if (dismissed) return;
+    dismissed = true;
+    tooltip.remove();
+    if (window._testerTooltipOutsideClick) {
+      document.removeEventListener('click', window._testerTooltipOutsideClick);
+      window._testerTooltipOutsideClick = null;
+    }
+    if (!skipSubmit) onSubmit(code || '');
+  }
+
+  document.getElementById('tooltipSubmit').addEventListener('click', (e) => {
+    e.stopPropagation();
+    dismiss((document.getElementById('tooltipTesterCode')?.value||'').toUpperCase().trim());
+  });
+  document.getElementById('tooltipSkip').addEventListener('click', (e) => {
+    e.stopPropagation();
+    dismiss('');
+  });
+  document.getElementById('tooltipTesterCode').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.stopPropagation(); dismiss((e.target.value||'').toUpperCase().trim()); }
+  });
+  document.getElementById('tooltipTesterCode').addEventListener('click', (e) => e.stopPropagation());
+
+  // Register outside click handler on window so it can be cleaned up
+  window._testerTooltipOutsideClick = function(e) {
+    if (!tooltip.contains(e.target) && e.target !== anchorEl) {
+      const isThumbDown = e.target.closest('.thumb-down');
+      // If clicking thumbs down, close tooltip without submitting up rating
+      dismiss('', !!isThumbDown);
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('click', window._testerTooltipOutsideClick);
+  }, 150);
+}
+
 // ── submitRating — handles BOTH up and down ratings ────────────────────────────
-async function submitRating(rating, extras, text, lang, context, reason) {
+async function submitRating(rating, extras, text, lang, context, reason, testerCode='') {
   const payload = {
     rating,
     language:          lang,
@@ -482,6 +556,7 @@ async function submitRating(rating, extras, text, lang, context, reason) {
     answer_local:      text || '',
     answer_english:    extras?.english || '',
     reason,
+    tester_code:       testerCode || '',
     session_id:        sessionId,
     timestamp:         new Date().toISOString(),
   };
@@ -500,6 +575,7 @@ function openFeedbackModal(extras, text, lang) {
   // Reset modal
   document.getElementById('fbReason').value = '';
   document.getElementById('fbCorrection').value = '';
+  const _fbTc = document.getElementById('fbTesterCode'); if(_fbTc) _fbTc.value = '';
   document.getElementById('fbRecordLabel').textContent = 'Hold to record correction';
   document.getElementById('fbAudioStatus').textContent = '';
   // Show modal
@@ -522,6 +598,7 @@ async function submitThumbsFeedback(rating, extras, text, lang, audioBlob) {
   fd.append('answer_english',    extras?.english || '');
   fd.append('correction_text',   document.getElementById('fbCorrection')?.value || '');
   fd.append('reason',            document.getElementById('fbReason')?.value || '');
+  fd.append('tester_code',       (document.getElementById('fbTesterCode')?.value || '').toUpperCase().trim());
   fd.append('session_id',        sessionId);
   if (audioBlob) fd.append('audio', audioBlob, 'correction.wav');
   try {
@@ -568,8 +645,9 @@ document.getElementById('fbSubmitBtn')?.addEventListener('click', async ()=>{
   document.getElementById('fbSubmitBtn').textContent = 'Submitting…';
   document.getElementById('fbSubmitBtn').disabled = true;
   const reason = document.getElementById('fbReason')?.value || '';
+  const fbTesterCode = (document.getElementById('fbTesterCode')?.value || '').toUpperCase().trim();
   // Track thumbs down rating
-  await submitRating('down', _feedbackExtras, _feedbackText, _feedbackLang, 'correction', reason);
+  await submitRating('down', _feedbackExtras, _feedbackText, _feedbackLang, 'correction', reason, fbTesterCode);
   await submitThumbsFeedback('down', _feedbackExtras, _feedbackText, _feedbackLang, _fbAudioBlob);
   document.getElementById('feedbackModal').innerHTML = `
     <div class="modal-card" style="text-align:center;padding:40px 24px">
