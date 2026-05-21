@@ -201,6 +201,17 @@ document.getElementById('surveyClose').addEventListener('click',closeSurvey);
 document.getElementById('surveyModal').addEventListener('click',(e)=>{ if(e.target===document.getElementById('surveyModal')) closeSurvey(); });
 function closeSurvey() { const m=document.getElementById('surveyModal'); m.classList.remove('visible'); setTimeout(()=>m.classList.add('hidden'),300); }
 
+// ── Tester code show/hide ─────────────────────────────────────────────────────
+function attachTesterToggle() {
+  document.querySelectorAll('input[name="is_tester"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const group = document.getElementById('testerCodeGroup');
+      if(group) group.style.display = radio.value === 'Yes' ? 'block' : 'none';
+    });
+  });
+}
+attachTesterToggle();
+
 document.getElementById('surveyForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const form = document.getElementById('surveyForm');
@@ -234,6 +245,7 @@ document.getElementById('surveyForm').addEventListener('submit', async (e)=>{
     if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='Submit Feedback'; }
     const ty = document.getElementById('surveyThankYou');
     if(ty) ty.remove();
+    attachTesterToggle(); // re-attach after reset
     closeSurvey();
   }, 3000);
 });
@@ -650,6 +662,7 @@ document.getElementById('transDownloadBtn').addEventListener('click',()=>{
 
 function renderTransHistory() {
   const list = document.getElementById('transHistoryList');
+  if(!list) return;
   if(!transHistory.length){list.innerHTML='<p style="color:var(--text-3);font-size:0.8rem">No transcriptions yet.</p>';return;}
   list.innerHTML=transHistory.map((t,i)=>`
     <div class="trans-item" onclick="document.getElementById('transcriptBox').textContent=this.dataset.text;document.getElementById('transcribeResult').style.display='block';" data-text="${t.text.replace(/"/g,'&quot;')}">
