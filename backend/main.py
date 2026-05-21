@@ -536,13 +536,14 @@ async def voice_agent(audio: UploadFile = File(...), language: str = Form(...),
 # Ratings Google Form — confirmed entry IDs from prefill URL
 RATINGS_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfE_u5-jFamI8F7-O-rX4wWZAJj6zDSQPvUiExhCuWwpJLFzg/formResponse"
 RATINGS_ENTRIES = {
-    "session_id": "entry.827562462",
-    "language":   "entry.1733085737",
-    "question":   "entry.1628278098",   # includes context prefix e.g. "[chat] What is puberty?"
-    "answer":     "entry.631432683",
-    "rating":     "entry.1027195700",
-    "reason":     "entry.1402075535",
-    "timestamp":  "entry.2121134314",
+    "session_id":   "entry.827562462",
+    "language":     "entry.1733085737",
+    "question":     "entry.1628278098",   # includes context prefix e.g. "[chat] What is puberty?"
+    "answer":       "entry.631432683",
+    "rating":       "entry.1027195700",
+    "reason":       "entry.1402075535",
+    "timestamp":    "entry.2121134314",
+    "tester_code":  "entry.1288031030",
 }
 
 class RatingData(BaseModel):
@@ -554,6 +555,7 @@ class RatingData(BaseModel):
     answer_local:      Optional[str] = ""
     answer_english:    Optional[str] = ""
     reason:            Optional[str] = ""
+    tester_code:       Optional[str] = ""
     session_id:        Optional[str] = ""
     timestamp:         Optional[str] = ""
 
@@ -591,7 +593,9 @@ async def save_rating(data: RatingData):
             RATINGS_ENTRIES["rating"]:     "thumbs_up" if data.rating == "up" else "thumbs_down",
             RATINGS_ENTRIES["reason"]:     data.reason or "",
             RATINGS_ENTRIES["timestamp"]:  data.timestamp,
+            RATINGS_ENTRIES["tester_code"]: data.tester_code or "N/A",
         }
+        logger.info(f"Ratings form_data: {form_data}")
         try:
             async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
                 r = await client.post(
@@ -602,7 +606,7 @@ async def save_rating(data: RatingData):
         except Exception as e:
             logger.warning(f"Ratings form failed: {e}")
 
-    logger.info(f"Rating saved: {data.rating} lang={data.language} context={data.context} id={record['id']}")
+    logger.info(f"Rating saved: {data.rating} lang={data.language} context={data.context} tester_code={data.tester_code!r} id={record['id']}")
     return {"status": "saved", "id": record["id"], "rating": data.rating}
 
 
