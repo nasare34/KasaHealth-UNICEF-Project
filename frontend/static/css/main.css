@@ -318,3 +318,31 @@ body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text
 }
 .msg-disclaimer a { text-decoration: none; }
 .msg-disclaimer a:hover { text-decoration: underline; }
+
+/* ── Tester tooltip ─────────────────────────────────────────── */
+.tester-tooltip {
+  position: absolute;
+  z-index: 9999;
+  background: var(--bg-2);
+  border: 1px solid var(--green);
+  border-radius: 10px;
+  padding: 12px 14px;
+  width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: fadeInUp 0.15s ease;
+}
+.tester-tooltip-label { font-size:0.78rem; color:var(--text-2); margin-bottom:8px; font-weight:500; }
+.tester-tooltip input {
+  width:100%; background:var(--bg-3); border:1px solid var(--border); border-radius:6px;
+  padding:6px 10px; color:var(--text); font-size:0.8rem; font-family:Sora,sans-serif;
+  outline:none; margin-bottom:10px; box-sizing:border-box;
+}
+.tester-tooltip input:focus { border-color: var(--green); }
+.tester-tooltip-btns { display:flex; gap:8px; justify-content:flex-end; }
+.tester-tooltip-btns button {
+  padding:5px 14px; border-radius:6px; font-size:0.78rem; font-family:Sora,sans-serif;
+  cursor:pointer; border:1px solid var(--border); background:var(--bg-3); color:var(--text-2);
+  transition:var(--transition);
+}
+.tester-tooltip-btns button.primary { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+.tester-tooltip-btns button:hover { opacity:0.85; }
