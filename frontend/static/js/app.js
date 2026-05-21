@@ -793,6 +793,7 @@ const checkLabel        = document.getElementById('disclaimerCheckLabel');
 // Only skip if user agreed in this same browser session (not across sessions)
 if (!sessionStorage.getItem('kasa_disclaimer_agreed')) {
   disclaimerModal.classList.remove('hidden');
+  setTimeout(() => disclaimerModal.classList.add('visible'), 10);
 } else {
   disclaimerModal.classList.add('hidden');
 }
@@ -818,9 +819,11 @@ disclaimerCheck.addEventListener('change', () => {
 
 disclaimerAgreeBtn.addEventListener('click', () => {
   sessionStorage.setItem('kasa_disclaimer_agreed', 'true');
-  disclaimerModal.style.opacity = '0';
-  disclaimerModal.style.transition = 'opacity 0.4s';
-  setTimeout(() => { disclaimerModal.classList.add('hidden'); disclaimerModal.style.opacity = ''; }, 400);
+  disclaimerModal.classList.remove('visible');
+  setTimeout(() => {
+    disclaimerModal.classList.add('hidden');
+    disclaimerModal.style.opacity = '';
+  }, 300);
 });
 
 document.getElementById('welcome').style.display='flex';
