@@ -201,28 +201,40 @@ document.getElementById('surveyClose').addEventListener('click',closeSurvey);
 document.getElementById('surveyModal').addEventListener('click',(e)=>{ if(e.target===document.getElementById('surveyModal')) closeSurvey(); });
 function closeSurvey() { const m=document.getElementById('surveyModal'); m.classList.remove('visible'); setTimeout(()=>m.classList.add('hidden'),300); }
 
-document.getElementById('surveyForm').addEventListener('submit',(e)=>{
+document.getElementById('surveyForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  const data = Object.fromEntries(new FormData(document.getElementById('surveyForm')));  // includes name, email, phone, age, gender etc.
+  const form = document.getElementById('surveyForm');
+  const data = Object.fromEntries(new FormData(form));
   data.timestamp=new Date().toISOString(); data.language=currentLang; data.sessionId=sessionId;
   const surveys=JSON.parse(localStorage.getItem('kasa_surveys')||'[]'); surveys.push(data);
   localStorage.setItem('kasa_surveys',JSON.stringify(surveys));
-  fetch(`${API_BASE}/survey`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{});
-  // Show thank you message temporarily then reset form for next submission
-  const form = document.getElementById('surveyForm');
-  const originalHTML = form.innerHTML;
-  form.innerHTML=`<div class="survey-thanks"><div class="thanks-icon">🙏</div><h3>Thank you!</h3><p>Your feedback helps us improve health information for young people in Ghana.</p><button type="button" class="survey-submit-btn" onclick="closeSurvey()">Close</button></div>`;
+
+  // Disable submit button to prevent double submission
+  const submitBtn = form.querySelector('.survey-submit-btn');
+  if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='Submitting…'; }
+
+  // Submit to backend (await so Google Form receives it before we reset)
+  try {
+    await fetch(`${API_BASE}/survey`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  } catch(err) { console.error('Survey submit error:', err); }
+
+  // Show thank you overlay inside modal (don't replace form HTML)
+  const thankYou = document.createElement('div');
+  thankYou.id = 'surveyThankYou';
+  thankYou.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-2);border-radius:16px;z-index:10;padding:40px 24px;text-align:center';
+  thankYou.innerHTML = `<div style="font-size:2.5rem;margin-bottom:12px">🙏</div><h3 style="color:var(--green-light);margin-bottom:8px">Thank you!</h3><p style="color:var(--text-2);font-size:0.87rem;line-height:1.6">Your feedback helps us improve health information for young people in Ghana.</p><button type="button" class="survey-submit-btn" style="margin-top:20px" onclick="closeSurvey()">Close</button>`;
+
+  const modalCard = document.querySelector('#surveyModal .modal-card');
+  if(modalCard){ modalCard.style.position='relative'; modalCard.appendChild(thankYou); }
+
+  // After 3 seconds reset the form and remove thank you overlay
   setTimeout(()=>{
-    form.innerHTML = originalHTML;
     form.reset();
-    // Re-attach tester code toggle after form is restored
-    document.querySelectorAll('input[name="is_tester"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        const group = document.getElementById('testerCodeGroup');
-        if(group) group.style.display = radio.value === 'Yes' ? 'block' : 'none';
-      });
-    });
     document.getElementById('testerCodeGroup').style.display = 'none';
+    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='Submit Feedback'; }
+    const ty = document.getElementById('surveyThankYou');
+    if(ty) ty.remove();
+    closeSurvey();
   }, 3000);
 });
 
