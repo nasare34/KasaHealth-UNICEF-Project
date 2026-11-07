@@ -1,4 +1,4 @@
-# Kasa Health — ASRH Assistant v8
+# Kasa Health — ASRH Assistant v1.2
 
 AI-powered Adolescent Sexual & Reproductive Health assistant in **Twi, Dagbani and Ewe**,
 built for UNICEF Ghana with Khaya AI (GhanaNLP). Answers come from **Grok, Gemini, OpenAI or Qwen**
