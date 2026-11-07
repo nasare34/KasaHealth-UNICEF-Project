@@ -6,17 +6,17 @@ built for UNICEF Ghana with Khaya AI (GhanaNLP). Answers come from **Grok, Gemin
 
 ## Features
 
-- 💬 **Chat**: voice or text questions, answered in the user's language and English, with a spoken reply.
-- 🎤 **Transcribe**: speech-to-text only, with an editable result.
-- 🤖 **Voice Agent**: a live spoken conversation, in two modes:
+-  **Chat**: voice or text questions, answered in the user's language and English, with a spoken reply.
+-  **Transcribe**: speech-to-text only, with an editable result.
+-  **Voice Agent**: a live spoken conversation, in two modes:
   - **Hold to talk**: hold the button (or the Space bar) while speaking.
   - **Hands-free**: tap once and talk naturally. Kasa detects when you stop, replies, and listens again. Tap or press Space to interrupt.
-- 👍👎 **Ratings and corrections**: a thumbs-down opens a correction form, and recorded corrections go to Hugging Face.
-- 📝 **Survey**: sent to Google Forms.
-- 📋 **History**: conversations are saved in the browser and can be reopened.
-- 🛟 **Safety support**: messages about suicide, self-harm, abuse, serious injury or a medical emergency get a caring reply, tap-to-call 112 and SHEplus numbers, and an *optional* form to be contacted. The support team is emailed straight away.
-- 🌗 **Light (green) and dark mode**, a **collapsible side panel**, and a layout built for phones.
-- 🛠 **Admin page** at `/admin`: switch or reorder AI providers live, check their health, and view incidents and safety reports.
+-  **Ratings and corrections**: a thumbs-down opens a correction form, and recorded corrections go to Hugging Face.
+-  **Survey**: sent to Google Forms.
+- **History**: conversations are saved in the browser and can be reopened.
+-  **Safety support**: messages about suicide, self-harm, abuse, serious injury or a medical emergency get a caring reply, tap-to-call 112 and SHEplus numbers, and an *optional* form to be contacted. The support team is emailed straight away.
+-  **Light (green) and dark mode**, a **collapsible side panel**, and a layout built for phones.
+-  **Admin page** at `/admin`: switch or reorder AI providers live, check their health, and view incidents and safety reports.
 
 ## Quick start (local)
 
