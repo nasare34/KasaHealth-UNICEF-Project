@@ -1,937 +1,648 @@
-/* ─── KASA HEALTH — app.js v3 ──────────────────────────────────────────────── */
-const API_BASE = '/api';
+// Kasa Health main script. Each module does one job; this file wires them together.
+import { api, ApiError, friendlyMessage, isAbort } from './api.js';
+import { initAgent, stopAgent } from './agent.js';
+import { initFeedback, makeThumbs } from './feedback.js';
+import { makeCrisisCard } from './safety.js';
+import { downloadAudio, player } from './player.js';
+import { mic } from './recorder.js';
+import { tapRecorder } from './taprecord.js';
+import { LANGS, state, store } from './state.js';
+import { $, closeModal, disclaimerNode, downloadText, el,
+         openModal, setStatus, toast, toastError } from './ui.js';
 
-// ── Global state ──────────────────────────────────────────────────────────────
-let currentLang    = 'tw';
-let currentSpeaker = 'female';
-let playbackRate   = 1.0;
-let isRecording    = false;
-let conversationHistory = [];
-let agentHistory   = [];
-let currentAudio   = null;
-let sessionId      = Date.now().toString();
-
-const LANG_CONFIG = {
-  tw:  { name: 'Twi' },
-  dag: { name: 'Dagbani' },
-  ee:  { name: 'Ewe' },
-};
 const QUICK_PROMPTS = {
-  puberty:       "What changes happen to my body during puberty?",
-  contraception: "What contraception options are available for young people?",
-  sti:           "How can I protect myself from STIs and HIV?",
-  pregnancy:     "What are the signs of pregnancy and what should I do?",
-  menstruation:  "Is it normal to have irregular periods?",
-  consent:       "What is consent and how do I know if I am in a safe relationship?",
+  puberty:       'What changes happen to my body during puberty?',
+  contraception: 'What contraception options are available for young people?',
+  sti:           'How can I protect myself from STIs and HIV?',
+  pregnancy:     'What are the signs of pregnancy and what should I do?',
+  menstruation:  'Is it normal to have irregular periods?',
+  consent:       'What is consent and how do I know if I am in a safe relationship?',
 };
+const SESSIONS_KEY = 'kasa_sessions';
+const TRANSCRIPTS_KEY = 'kasa_transcriptions';
+const isMobile = () => window.innerWidth < 900;
 
-// ── WAV recorder (shared) ─────────────────────────────────────────────────────
-let _audioCtx = null, _processor = null, _stream = null, _pcmChunks = [];
-const SAMPLE_RATE = 16000;
-
-async function startWAVRecording() {
-  _stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: SAMPLE_RATE, channelCount: 1 } });
-  _audioCtx  = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
-  const src  = _audioCtx.createMediaStreamSource(_stream);
-  _processor = _audioCtx.createScriptProcessor(4096, 1, 1);
-  _pcmChunks = [];
-  _processor.onaudioprocess = (e) => { if (isRecording) _pcmChunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
-  src.connect(_processor); _processor.connect(_audioCtx.destination);
-  isRecording = true;
-}
-
-function stopWAVRecording() {
-  isRecording = false;
-  if (_processor) { _processor.disconnect(); _processor = null; }
-  if (_audioCtx)  { _audioCtx.close();       _audioCtx = null;  }
-  if (_stream)    { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
-  const total = _pcmChunks.reduce((n,c) => n+c.length, 0);
-  if (total < 800) return null;
-  return encodeWAV(_pcmChunks, SAMPLE_RATE);
-}
-
-function encodeWAV(chunks, sr) {
-  const total = chunks.reduce((n,c)=>n+c.length,0);
-  const f32   = new Float32Array(total);
-  let off = 0; for (const c of chunks) { f32.set(c, off); off += c.length; }
-  const i16 = new Int16Array(f32.length);
-  for (let i=0;i<f32.length;i++) { const s=Math.max(-1,Math.min(1,f32[i])); i16[i]=s<0?s*0x8000:s*0x7FFF; }
-  const ds = i16.length*2, buf = new ArrayBuffer(44+ds), v = new DataView(buf);
-  const ws = (o,s) => { for (let i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); };
-  ws(0,'RIFF'); v.setUint32(4,36+ds,true); ws(8,'WAVE');
-  ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
-  ws(36,'data'); v.setUint32(40,ds,true);
-  const pb = new Uint8Array(buf,44);
-  for (let i=0;i<i16.length;i++) { pb[i*2]=i16[i]&0xff; pb[i*2+1]=(i16[i]>>8)&0xff; }
-  return new Blob([buf], {type:'audio/wav'});
-}
-
-// ── Audio playback ─────────────────────────────────────────────────────────────
-function playAudio(b64, fmt='wav', onEnd=null) {
-  stopAudio();
-  const mime = fmt==='mp3'?'audio/mpeg':`audio/${fmt}`;
-  const bytes = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
-  const url   = URL.createObjectURL(new Blob([bytes],{type:mime}));
-  currentAudio = new Audio(url);
-  currentAudio.playbackRate = playbackRate;
-  currentAudio.play().catch(console.error);
-  currentAudio.addEventListener('ended', ()=>{ URL.revokeObjectURL(url); if(onEnd) onEnd(); });
-  return currentAudio;
-}
-function stopAudio() { if(currentAudio){currentAudio.pause();currentAudio=null;} }
-
-// ── Bar animation ─────────────────────────────────────────────────────────────
-function animateBars(vizEl) {
-  const bars = vizEl.querySelectorAll('.bar');
-  function frame() { if(!isRecording)return; bars.forEach(b=>{b.style.height=(Math.random()*30+6)+'px';}); setTimeout(frame,80); }
-  frame();
-}
-function resetBars(vizEl) { vizEl.querySelectorAll('.bar').forEach(b=>b.style.height='8px'); }
-
-// ── Download helpers ──────────────────────────────────────────────────────────
-function downloadText(localText, englishText, lang) {
-  const content = `Kasa Health — ASRH Assistant\n${'─'.repeat(40)}\nLanguage: ${LANG_CONFIG[lang]?.name||lang}\nDate: ${new Date().toLocaleString()}\n\n--- Response (${LANG_CONFIG[lang]?.name||lang}) ---\n${localText}\n\n--- English ---\n${englishText||''}\n`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content],{type:'text/plain'}));
-  a.download = `kasa-health-${lang}-${Date.now()}.txt`;
-  a.click(); URL.revokeObjectURL(a.href);
-}
-function downloadAudio(b64, fmt, lang) {
-  const mime = fmt==='mp3'?'audio/mpeg':`audio/${fmt}`;
-  const bytes = Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([bytes],{type:mime}));
-  a.download = `kasa-health-${lang}-${Date.now()}.${fmt}`;
-  a.click(); URL.revokeObjectURL(a.href);
-}
-
-// ── Session/history storage ───────────────────────────────────────────────────
-function saveSession() {
-  if (!conversationHistory.length) return;
-  const sessions = JSON.parse(localStorage.getItem('kasa_sessions')||'[]');
-  sessions.unshift({ id:sessionId, timestamp:new Date().toISOString(), language:currentLang,
-    preview: conversationHistory[0]?.content?.slice(0,80)||'Conversation', messages:conversationHistory });
-  localStorage.setItem('kasa_sessions', JSON.stringify(sessions.slice(0,20)));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ── TAB SWITCHING ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ── SIDEBAR & GLOBAL CONTROLS ─────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-document.getElementById('menuBtn').addEventListener('click', ()=>document.getElementById('sidebar').classList.toggle('open'));
-document.getElementById('sidebarClose').addEventListener('click', ()=>document.getElementById('sidebar').classList.remove('open'));
-
-document.querySelectorAll('.lang-btn').forEach(btn => {
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active'); currentLang = btn.dataset.lang;
-    const name = LANG_CONFIG[currentLang].name;
-    document.getElementById('currentLangBadge').textContent = `🇬🇭 ${name}`;
-    document.getElementById('hintLang').textContent = name;
-    document.getElementById('textHintLang').textContent = name;
-    document.getElementById('transLangLabel').textContent = name;
-    document.getElementById('transLangBadge').textContent = name;
-    if(window.innerWidth<768) document.getElementById('sidebar').classList.remove('open');
-  });
-});
-
-document.querySelectorAll('.speaker-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.speaker-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active'); currentSpeaker = btn.dataset.speaker;
-  });
-});
-
-const speedSlider = document.getElementById('speedSlider');
-const speedLabel  = document.getElementById('speedLabel');
-speedSlider.addEventListener('input', ()=>{
-  playbackRate = parseFloat(speedSlider.value);
-  speedLabel.textContent = `${playbackRate.toFixed(1)}×`;
-  if(currentAudio) currentAudio.playbackRate = playbackRate;
-});
-
-document.querySelectorAll('.topic-chip').forEach(chip=>{
-  chip.addEventListener('click',()=>{ sendTextMessage(QUICK_PROMPTS[chip.dataset.topic]); if(window.innerWidth<768) document.getElementById('sidebar').classList.remove('open'); });
-});
-document.querySelectorAll('.welcome-card').forEach(card=>{
-  card.addEventListener('click',()=>sendTextMessage(card.dataset.prompt));
-});
-document.getElementById('newChatBtn').addEventListener('click',()=>{
-  saveSession(); conversationHistory=[]; sessionId=Date.now().toString();
-  document.getElementById('messages').innerHTML='';
-  document.getElementById('welcome').style.display='flex';
-  if(window.innerWidth<768) document.getElementById('sidebar').classList.remove('open');
-});
-
-// ── Chat mode toggle ──────────────────────────────────────────────────────────
-document.getElementById('modeVoice').addEventListener('click',()=>{
-  document.getElementById('modeVoice').classList.add('active');
-  document.getElementById('modeText').classList.remove('active');
-  document.getElementById('voicePanel').classList.remove('hidden');
-  document.getElementById('textPanel').classList.add('hidden');
-});
-document.getElementById('modeText').addEventListener('click',()=>{
-  document.getElementById('modeText').classList.add('active');
-  document.getElementById('modeVoice').classList.remove('active');
-  document.getElementById('textPanel').classList.remove('hidden');
-  document.getElementById('voicePanel').classList.add('hidden');
-  document.getElementById('textInput').focus();
-});
-
-const textInput = document.getElementById('textInput');
-textInput.addEventListener('input',()=>{ textInput.style.height='auto'; textInput.style.height=Math.min(textInput.scrollHeight,120)+'px'; });
-textInput.addEventListener('keydown',(e)=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const t=textInput.value.trim();if(t)sendTextMessage(t);} });
-document.getElementById('sendBtn').addEventListener('click',()=>{ const t=textInput.value.trim();if(t)sendTextMessage(t); });
-
-// ── Survey ────────────────────────────────────────────────────────────────────
-document.getElementById('surveyBtn').addEventListener('click',()=>{ const m=document.getElementById('surveyModal'); m.classList.remove('hidden'); setTimeout(()=>m.classList.add('visible'),10); });
-document.getElementById('surveyClose').addEventListener('click',closeSurvey);
-document.getElementById('surveyModal').addEventListener('click',(e)=>{ if(e.target===document.getElementById('surveyModal')) closeSurvey(); });
-function closeSurvey() { const m=document.getElementById('surveyModal'); m.classList.remove('visible'); setTimeout(()=>m.classList.add('hidden'),300); }
-
-// ── Tester code show/hide ─────────────────────────────────────────────────────
-function attachTesterToggle() {
-  document.querySelectorAll('input[name="is_tester"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      const group = document.getElementById('testerCodeGroup');
-      if(group) group.style.display = radio.value === 'Yes' ? 'block' : 'none';
+// --- Layout: tabs, sidebar, settings ---
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const leavingAgent = $('tab-agent').classList.contains('active') && btn.dataset.tab !== 'agent';
+      if (leavingAgent) stopAgent();
+      recorders.forEach((r) => r.cancel());   // never keep recording in a tab you've left
+      player.stop();
+      document.querySelectorAll('.tab-btn').forEach((b) => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+      document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      $(`tab-${btn.dataset.tab}`).classList.add('active');
     });
   });
 }
-attachTesterToggle();
 
-document.getElementById('surveyForm').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const form = document.getElementById('surveyForm');
-  const data = Object.fromEntries(new FormData(form));
-  data.timestamp=new Date().toISOString(); data.language=currentLang; data.sessionId=sessionId;
-  const surveys=JSON.parse(localStorage.getItem('kasa_surveys')||'[]'); surveys.push(data);
-  localStorage.setItem('kasa_surveys',JSON.stringify(surveys));
-
-  // Disable submit button to prevent double submission
-  const submitBtn = form.querySelector('.survey-submit-btn');
-  if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='Submitting…'; }
-
-  // Submit to backend (await so Google Form receives it before we reset)
-  try {
-    await fetch(`${API_BASE}/survey`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  } catch(err) { console.error('Survey submit error:', err); }
-
-  // Show thank you overlay inside modal (don't replace form HTML)
-  const thankYou = document.createElement('div');
-  thankYou.id = 'surveyThankYou';
-  thankYou.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-2);border-radius:16px;z-index:10;padding:40px 24px;text-align:center';
-  thankYou.innerHTML = `<div style="font-size:2.5rem;margin-bottom:12px">🙏</div><h3 style="color:var(--green-light);margin-bottom:8px">Thank you!</h3><p style="color:var(--text-2);font-size:0.87rem;line-height:1.6">Your feedback helps us improve health information for young people in Ghana.</p><button type="button" class="survey-submit-btn" style="margin-top:20px" onclick="closeSurvey()">Close</button>`;
-
-  const modalCard = document.querySelector('#surveyModal .modal-card');
-  if(modalCard){ modalCard.style.position='relative'; modalCard.appendChild(thankYou); }
-
-  // After 3 seconds reset the form and remove thank you overlay
-  setTimeout(()=>{
-    form.reset();
-    document.getElementById('testerCodeGroup').style.display = 'none';
-    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='Submit Feedback'; }
-    const ty = document.getElementById('surveyThankYou');
-    if(ty) ty.remove();
-    attachTesterToggle(); // re-attach after reset
-    closeSurvey();
-  }, 3000);
-});
-
-// ── History panel ─────────────────────────────────────────────────────────────
-document.getElementById('historyBtn').addEventListener('click',()=>{
-  loadHistory();
-  const p=document.getElementById('historyPanel'); p.classList.remove('hidden'); setTimeout(()=>p.classList.add('visible'),10);
-});
-document.getElementById('historyClose').addEventListener('click',()=>{ const p=document.getElementById('historyPanel'); p.classList.remove('visible'); setTimeout(()=>p.classList.add('hidden'),300); });
-function loadHistory() {
-  const sessions=JSON.parse(localStorage.getItem('kasa_sessions')||'[]');
-  const list=document.getElementById('historyList');
-  if(!sessions.length){list.innerHTML='<p class="history-empty">No saved conversations yet.</p>';return;}
-  list.innerHTML=sessions.map(s=>`<div class="history-item"><div class="history-lang">${LANG_CONFIG[s.language]?.name||s.language}</div><div class="history-preview">${s.preview}…</div><div class="history-time">${new Date(s.timestamp).toLocaleDateString()}</div></div>`).join('');
+/* --- Sidebar: drawer on phones/tablets, collapsible panel on desktop --- */
+function setDrawer(open) {
+  $('sidebar').classList.toggle('open', open);
+  $('sidebarBackdrop').classList.toggle('show', open);
+  $('menuBtn').setAttribute('aria-expanded', String(open));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ── CHAT TAB ──────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-const micBtn   = document.getElementById('micBtn');
-const micLabel = document.getElementById('micLabel');
-const voiceViz = document.getElementById('voiceViz');
-let chatRecording = false;
-
-micBtn.addEventListener('mousedown', startChatRecord);
-micBtn.addEventListener('touchstart',(e)=>{e.preventDefault();startChatRecord();});
-micBtn.addEventListener('mouseup', stopChatRecord);
-micBtn.addEventListener('touchend',(e)=>{e.preventDefault();stopChatRecord();});
-micBtn.addEventListener('mouseleave',()=>{if(chatRecording)stopChatRecord();});
-
-async function startChatRecord() {
-  if(chatRecording) return;
-  try {
-    await startWAVRecording(); chatRecording=true;
-    micBtn.classList.add('recording'); micLabel.textContent='Release';
-    voiceViz.classList.add('recording'); animateBars(voiceViz);
-  } catch(e) { showError('Microphone access denied.'); }
-}
-function stopChatRecord() {
-  if(!chatRecording) return; chatRecording=false;
-  micBtn.classList.remove('recording'); micLabel.textContent='Hold to speak';
-  voiceViz.classList.remove('recording'); resetBars(voiceViz);
-  const blob = stopWAVRecording();
-  if(blob) sendVoiceMessage(blob);
+function toggleSidebar() {
+  if (isMobile()) { setDrawer(!$('sidebar').classList.contains('open')); return; }
+  const collapsed = !document.documentElement.classList.contains('sidebar-collapsed');
+  document.documentElement.classList.toggle('sidebar-collapsed', collapsed);
+  $('menuBtn').setAttribute('aria-expanded', String(!collapsed));
+  store.set('kasa_sidebar_collapsed', collapsed);
 }
 
-async function sendVoiceMessage(audioBlob) {
-  showWelcome(false); showProcessing('Converting speech to text…'); setStatus('busy');
-  const fd = new FormData();
-  fd.append('audio', audioBlob, 'recording.wav');
-  fd.append('language', currentLang);
-  try {
-    const asrR = await fetch(`${API_BASE}/asr`,{method:'POST',body:fd});
-    const asrD = await asrR.json();
-    if(!asrR.ok) throw new Error(asrD.detail||'ASR failed');
-    if(!asrD.transcript) throw new Error('Could not understand speech. Please try again.');
-    addMessage('user', asrD.transcript, {isVoice:true});
+function closeSidebarOnMobile() { if (isMobile()) setDrawer(false); }
 
-    setProcessingText('Getting your answer…');
-    const chatR = await fetch(`${API_BASE}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:asrD.transcript,language:currentLang,history:conversationHistory.slice(-6)})});
-    const chatD = await chatR.json();
-    if(!chatR.ok) throw new Error(chatD.detail||'LLM error');
-    conversationHistory.push({role:'user',content:chatD.question_translated});
-    conversationHistory.push({role:'assistant',content:chatD.answer_english});
-    saveSession();
+/* --- Theme: light (green) / dark --- */
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  $('themeToggle').textContent = theme === 'light' ? '🌙' : '☀️';
+  $('themeToggle').title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+  $('themeColorMeta')?.setAttribute('content', theme === 'light' ? '#f4faf5' : '#0d1117');
+}
 
-    setProcessingText('Preparing voice response…');
-    let audioB64=null,audioFmt=null;
-    try {
-      const ttsR = await fetch(`${API_BASE}/tts`,{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({text:chatD.answer_local,language:currentLang,speaker:currentSpeaker})});
-      const ttsD = await ttsR.json();
-      if(ttsD.audio_base64){audioB64=ttsD.audio_base64;audioFmt=ttsD.format||'wav';}
-    } catch(e){}
+function initTheme() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+  $('themeToggle').addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    store.set('kasa_theme', next);
+  });
+}
 
-    hideProcessing(); setStatus('ok');
-    addMessage('bot',chatD.answer_local,{english:chatD.answer_english,audioB64,audioFmt,lang:currentLang,langName:chatD.language_name,questionOriginal:asrD.transcript,questionEnglish:chatD.question_translated});
-    if(audioB64) playAudio(audioB64,audioFmt);
-  } catch(err){ hideProcessing();setStatus('error');showError(err.message);setTimeout(()=>setStatus('ok'),4000); }
+function applyLanguageLabels() {
+  const name = state.langName;
+  $('currentLangBadge').textContent = `🇬🇭 ${name}`;
+  ['hintLang', 'textHintLang', 'transLangLabel', 'transLangBadge'].forEach((id) => { $(id).textContent = name; });
+}
+
+function initSettings() {
+  $('menuBtn').addEventListener('click', toggleSidebar);
+  $('sidebarClose').addEventListener('click', () => setDrawer(false));
+  $('sidebarBackdrop').addEventListener('click', () => setDrawer(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('sidebar').classList.contains('open')) setDrawer(false); });
+  window.addEventListener('resize', () => { if (!isMobile()) setDrawer(false); });
+  $('menuBtn').setAttribute('aria-expanded', String(isMobile() ? false : !document.documentElement.classList.contains('sidebar-collapsed')));
+
+  document.querySelectorAll('.lang-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.lang-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.lang = btn.dataset.lang;
+      store.set('kasa_lang', state.lang);
+      applyLanguageLabels();
+      closeSidebarOnMobile();
+    });
+  });
+
+  const savedLang = store.get('kasa_lang', 'tw');
+  if (LANGS[savedLang]) {
+    state.lang = savedLang;
+    document.querySelectorAll('.lang-btn').forEach((b) => b.classList.toggle('active', b.dataset.lang === savedLang));
+  }
+  applyLanguageLabels();
+
+
+  // Start from whichever voice button is marked active in the HTML.
+  const activeSpeaker = document.querySelector('.speaker-btn.active:not([disabled])');
+  if (activeSpeaker) state.speaker = activeSpeaker.dataset.speaker;
+  document.querySelectorAll('.speaker-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      document.querySelectorAll('.speaker-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.speaker = btn.dataset.speaker;
+    });
+  });
+
+  const slider = $('speedSlider');
+  slider.addEventListener('input', () => {
+    state.playbackRate = parseFloat(slider.value) || 1;
+    $('speedLabel').textContent = `${state.playbackRate.toFixed(1)}×`;
+    player.setRate(state.playbackRate);
+  });
+
+  document.querySelectorAll('.topic-chip').forEach((chip) => chip.addEventListener('click', () => {
+    selectTab('chat');
+    sendTextMessage(QUICK_PROMPTS[chip.dataset.topic]);
+    closeSidebarOnMobile();
+  }));
+  document.querySelectorAll('.welcome-card').forEach((card) => card.addEventListener('click', () => sendTextMessage(card.dataset.prompt)));
+
+  $('newChatBtn').addEventListener('click', () => { newConversation(); closeSidebarOnMobile(); });
+  $('topbarSurveyBtn').addEventListener('click', () => $('surveyBtn').click());
+  $('topbarHistoryBtn').addEventListener('click', () => $('historyBtn').click());
+}
+
+function selectTab(name) { document.querySelector(`.tab-btn[data-tab="${name}"]`)?.click(); }
+
+// --- Chat ---
+const recorders = [];   // tap-to-record controls (chat + transcribe)
+
+const chat = {
+  history: [],      // English turns sent to the model
+  display: [],      // what the user saw, for saved sessions
+  busy: false,
+  ctrl: null,
+};
+
+function showWelcome(show) { $('welcome').style.display = show ? 'flex' : 'none'; }
+
+function scrollToBottom() {
+  requestAnimationFrame(() => { const area = $('chatArea'); area.scrollTop = area.scrollHeight; });
+}
+
+function newConversation() {
+  saveSession();
+  chat.ctrl?.abort();
+  chat.ctrl = null;
+  chat.busy = false;
+  chat.history = [];
+  chat.display = [];
+  state.newSession();
+  player.stop();
+  $('messages').replaceChildren();
+  showWelcome(true);
+  setStatus('ok');
+}
+
+function showTyping(stage) {
+  let node = $('typingIndicator');
+  if (!node) {
+    node = el('div', { id: 'typingIndicator', class: 'message bot typing-indicator', 'aria-live': 'polite' },
+      el('div', { class: 'msg-avatar' }, '🏥'),
+      el('div', { class: 'msg-content' },
+        el('div', { class: 'msg-bubble' },
+          el('div', { class: 'typing-dot' }), el('div', { class: 'typing-dot' }), el('div', { class: 'typing-dot' })),
+        el('div', { class: 'typing-stage', id: 'typingStage' })));
+    $('messages').appendChild(node);
+  }
+  $('typingStage').textContent = stage || '';
+  scrollToBottom();
+}
+
+function removeTyping() { $('typingIndicator')?.remove(); }
+
+function addUserMessage(text, { isVoice = false } = {}) {
+  $('messages').appendChild(el('div', { class: 'message user' },
+    el('div', { class: 'msg-avatar' }, '👤'),
+    el('div', { class: 'msg-content' },
+      el('div', { class: 'msg-bubble' }, text),
+      isVoice ? el('div', { class: 'msg-lang-note' }, '🎤 Spoken in ', el('strong', {}, state.langName)) : null)));
+  scrollToBottom();
+}
+
+// When something goes wrong I show it as a gentle Kasa message, with a retry button if it helps.
+function addKindError(err, onRetry) {
+  const message = err instanceof ApiError ? err.message : friendlyMessage('internal');
+  const content = el('div', { class: 'msg-content' }, el('div', { class: 'msg-bubble kind-error' }, message));
+  if (onRetry) {
+    const retry = el('button', { type: 'button', class: 'action-btn retry-btn' }, '↻ Try again');
+    retry.addEventListener('click', () => { node.remove(); onRetry(); }, { once: true });
+    content.appendChild(el('div', { class: 'msg-actions' }, retry));
+  }
+  const node = el('div', { class: 'message bot' }, el('div', { class: 'msg-avatar' }, '💚'), content);
+  $('messages').appendChild(node);
+  scrollToBottom();
+}
+
+function makePlayButton(label, segments) {
+  const btn = el('button', { type: 'button', class: 'action-btn play-btn' }, `▶ Play in ${label}`);
+  btn.addEventListener('click', async () => {
+    if (btn.classList.contains('playing')) { player.stop(); return; }
+    document.querySelectorAll('.play-btn.playing').forEach((b) => b.dispatchEvent(new Event('kasa-reset')));
+    btn.classList.add('playing');
+    btn.textContent = '⏸ Playing…';
+    try { await player.play(segments); }
+    catch (err) { toastError(err); }
+    finally { btn.dispatchEvent(new Event('kasa-reset')); }
+  });
+  btn.addEventListener('kasa-reset', () => { btn.classList.remove('playing'); btn.textContent = `▶ Play in ${label}`; });
+  return btn;
+}
+
+function addBotMessage(text, extras = {}) {
+  const lang = extras.lang || state.lang;
+  const langName = LANGS[lang]?.name || lang;
+  const actions = el('div', { class: 'msg-actions' });
+
+  const addAudioButtons = (b64, fmt) => {
+    const segment = { audio_base64: b64, format: fmt };
+    actions.prepend(makePlayButton(langName, [segment]),
+      el('button', { type: 'button', class: 'action-btn dl-btn',
+                     onclick: () => downloadAudio(b64, fmt, `kasa-health-${lang}-${Date.now()}`) }, '⬇ Audio'));
+  };
+
+  if (extras.audioB64) {
+    addAudioButtons(extras.audioB64, extras.audioFmt || 'wav');
+  } else if (extras.ttsSupported !== false) {
+    const hear = el('button', { type: 'button', class: 'action-btn play-btn' }, `🔊 Hear in ${langName}`);
+    hear.addEventListener('click', async () => {
+      hear.disabled = true;
+      hear.textContent = 'Preparing voice…';
+      try {
+        const d = await api('/tts', { json: { text, language: lang, speaker: state.speaker }, timeoutMs: 60000 });
+        hear.remove();
+        addAudioButtons(d.audio_base64, d.format || 'wav');
+        player.play([{ audio_base64: d.audio_base64, format: d.format }]).catch(toastError);
+      } catch (err) {
+        if (isAbort(err)) return;
+        hear.disabled = false;
+        hear.textContent = '🔊 Try the voice again';
+        toast(friendlyMessage('tts_unavailable'), { tone: 'warn' });
+      }
+    });
+    actions.appendChild(hear);
+  }
+  actions.appendChild(el('button', { type: 'button', class: 'action-btn dl-btn', onclick: () => {
+    const body = `Kasa Health — ASRH Assistant\n${'─'.repeat(40)}\nLanguage: ${langName}\nDate: ${new Date().toLocaleString()}\n\n` +
+      `--- Response (${langName}) ---\n${text}\n\n--- English ---\n${extras.english || ''}\n`;
+    downloadText(body, `kasa-health-${lang}-${Date.now()}.txt`);
+  } }, '⬇ Text'));
+
+  $('messages').appendChild(el('div', { class: 'message bot' },
+    el('div', { class: 'msg-avatar' }, '🏥'),
+    el('div', { class: 'msg-content' },
+      el('div', { class: 'msg-bubble' }, text),
+      extras.english && extras.english !== text
+        ? el('div', { class: 'msg-translation' }, el('div', { class: 'msg-translation-label' }, 'English'), el('div', {}, extras.english))
+        : null,
+      extras.notice ? el('div', { class: 'soft-notice' }, `💬 ${extras.notice}`) : null,
+      disclaimerNode(false),
+      actions,
+      extras.safety?.flagged && !extras.readOnly
+        ? makeCrisisCard(extras.safety, { questionOriginal: extras.questionOriginal, questionEnglish: extras.questionEnglish })
+        : null,
+      extras.readOnly ? null : makeThumbs(extras, text, lang, 'chat'))));
+  scrollToBottom();
+}
+
+function beginRequest() {
+  if (chat.busy) {
+    toast('Kasa is still answering your last question — one moment! 💚', { timeout: 3000 });
+    return null;
+  }
+  chat.busy = true;
+  chat.ctrl = new AbortController();
+  setStatus('busy');
+  showWelcome(false);
+  return chat.ctrl;
+}
+
+function endRequest(ok) {
+  chat.busy = false;
+  chat.ctrl = null;
+  removeTyping();
+  setStatus(ok ? 'ok' : 'error');
+  if (!ok) setTimeout(() => setStatus('ok'), 5000);
+}
+
+function recordTurn(userText, d) {
+  chat.history.push({ role: 'user', content: d.question_translated }, { role: 'assistant', content: d.answer_english });
+  chat.history = chat.history.slice(-16);
+  chat.display.push({ role: 'user', text: userText }, { role: 'bot', text: d.answer_local, english: d.answer_english, lang: d.language });
+  saveSession();
+}
+
+async function askKasa(message, ctrl) {
+  return api('/chat', { json: { message, language: state.lang, history: chat.history.slice(-12), session_id: state.sessionId },
+                        timeoutMs: 70000, retries: 1, signal: ctrl.signal });
 }
 
 async function sendTextMessage(text) {
-  showWelcome(false); textInput.value=''; textInput.style.height='auto';
-  addMessage('user',text,{}); showTyping(); setStatus('busy');
+  text = (text || '').trim();
+  if (!text) return;
+  const ctrl = beginRequest();
+  if (!ctrl) return;
+  const input = $('textInput');
+  input.value = '';
+  input.style.height = 'auto';
+  addUserMessage(text);
+  showTyping('Finding an answer…');
   try {
-    const r = await fetch(`${API_BASE}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:text,language:currentLang,history:conversationHistory.slice(-6)})});
-    const d = await r.json();
-    if(!r.ok) throw new Error(d.detail||'Server error');
-    conversationHistory.push({role:'user',content:d.question_translated});
-    conversationHistory.push({role:'assistant',content:d.answer_english});
-    saveSession(); removeTyping(); setStatus('ok');
-    addMessage('bot',d.answer_local,{english:d.answer_english,lang:currentLang,langName:d.language_name,ttsSupported:true,questionOriginal:text,questionEnglish:d.question_translated});
-  } catch(err){ removeTyping();setStatus('error');showError(err.message);setTimeout(()=>setStatus('ok'),4000); }
+    const d = await askKasa(text, ctrl);
+    endRequest(true);
+    recordTurn(text, d);
+    addBotMessage(d.answer_local, { english: d.answer_english, lang: d.language, notice: d.notice, safety: d.safety,
+      ttsSupported: d.tts_supported, questionOriginal: text, questionEnglish: d.question_translated });
+  } catch (err) {
+    if (isAbort(err)) return;
+    endRequest(false);
+    addKindError(err, () => { chat.busy = false; retryText(text); });
+  }
 }
 
-function addMessage(role, text, extras={}) {
-  const div=document.createElement('div'); div.className=`message ${role}`;
-  const avatar=document.createElement('div'); avatar.className='msg-avatar';
-  avatar.textContent=role==='user'?'👤':'🏥';
-  const content=document.createElement('div'); content.className='msg-content';
-  const bubble=document.createElement('div'); bubble.className='msg-bubble'; bubble.textContent=text;
-  content.appendChild(bubble);
-  if(extras.isVoice){const n=document.createElement('div');n.className='msg-lang-note';n.innerHTML=`🎤 Spoken in <strong>${LANG_CONFIG[currentLang].name}</strong>`;content.appendChild(n);}
-  if(role==='bot'&&extras.english&&extras.english!==text){
-    const tb=document.createElement('div');tb.className='msg-translation';
-    tb.innerHTML=`<div class="msg-translation-label">English</div><div>${extras.english}</div>`;content.appendChild(tb);
-  }
-  if(role==='bot'){
-    // Per-message disclaimer
-    const disc=document.createElement('div'); disc.className='msg-disclaimer';
-    disc.innerHTML='⚕️ <strong>General information only.</strong> For personal or urgent concerns contact <strong>SHEplus Ghana</strong>: <a href="tel:0550545672" style="color:var(--green-light)">055 054 5672</a> / <a href="tel:0800001122" style="color:var(--green-light)">0800 00 11 22</a>';
-    content.appendChild(disc);
+function retryText(text) {
+  // The question bubble is already shown; ask again without adding it twice.
+  const ctrl = beginRequest();
+  if (!ctrl) return;
+  showTyping('Finding an answer…');
+  askKasa(text, ctrl).then((d) => {
+    endRequest(true);
+    recordTurn(text, d);
+    addBotMessage(d.answer_local, { english: d.answer_english, lang: d.language, notice: d.notice, safety: d.safety,
+      ttsSupported: d.tts_supported, questionOriginal: text, questionEnglish: d.question_translated });
+  }).catch((err) => {
+    if (isAbort(err)) return;
+    endRequest(false);
+    addKindError(err, () => retryText(text));
+  });
+}
 
-    const actions=document.createElement('div'); actions.className='msg-actions';
-    // Play / TTS button
-    if(extras.audioB64){
-      actions.appendChild(makePlayBtn(extras.langName||LANG_CONFIG[currentLang].name, extras.audioB64, extras.audioFmt||'wav', actions, text, extras.lang||currentLang));
-      actions.appendChild(makeDlAudioBtn(extras.audioB64, extras.audioFmt||'wav', extras.lang||currentLang));
-    } else {
-      const tb=document.createElement('button'); tb.className='action-btn play-btn';
-      tb.innerHTML=`🔊 Hear in ${extras.langName||LANG_CONFIG[extras.lang||currentLang].name}`;
-      tb.addEventListener('click',async()=>{
-        tb.disabled=true; tb.textContent='Loading…';
-        try {
-          const r=await fetch(`${API_BASE}/tts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,language:extras.lang||currentLang,speaker:currentSpeaker})});
-          const d=await r.json();
-          if(d.audio_base64){
-            tb.replaceWith(makePlayBtn(extras.langName,d.audio_base64,d.format||'wav',actions,text,extras.lang||currentLang));
-            actions.appendChild(makeDlAudioBtn(d.audio_base64,d.format||'wav',extras.lang||currentLang));
-            playAudio(d.audio_base64,d.format||'wav');
-          } else tb.textContent='Unavailable';
-        } catch{tb.textContent='Unavailable';}
-      });
-      actions.appendChild(tb);
+async function sendVoiceMessage(blob, knownTranscript = null) {
+  const ctrl = beginRequest();
+  if (!ctrl) return;
+  let transcript = knownTranscript;
+  try {
+    if (!transcript) {
+      showTyping('Listening to your voice…');
+      const form = new FormData();
+      form.append('audio', blob, 'recording.wav');
+      form.append('language', state.lang);
+      const asr = await api('/asr', { form, timeoutMs: 60000, retries: 1, signal: ctrl.signal });
+      transcript = asr.transcript;
+      addUserMessage(transcript, { isVoice: true });
     }
-    // Download text
-    const dlT=document.createElement('button'); dlT.className='action-btn dl-btn'; dlT.innerHTML='⬇ Text';
-    dlT.addEventListener('click',()=>downloadText(text,extras.english,extras.lang||currentLang));
-    actions.appendChild(dlT);
+    showTyping('Finding an answer…');
+    const d = await askKasa(transcript, ctrl);
+    recordTurn(transcript, d);
 
-    content.appendChild(actions);
-    // Add thumbs using the reusable widget
-    content.appendChild(makeThumbs(extras, text, currentLang, 'chat'));
-  }
-  div.appendChild(avatar); div.appendChild(content); document.getElementById('messages').appendChild(div); scrollToBottom();
-}
-
-function makePlayBtn(langName, b64, fmt, actions, text, lang) {
-  const btn=document.createElement('button'); btn.className='action-btn play-btn';
-  btn.innerHTML=`▶ Play in ${langName}`;
-  btn.addEventListener('click',()=>{
-    if(btn.classList.contains('playing')){stopAudio();btn.classList.remove('playing');btn.innerHTML=`▶ Play in ${langName}`;}
-    else{document.querySelectorAll('.play-btn.playing').forEach(b=>{b.classList.remove('playing');b.innerHTML=b.innerHTML.replace('⏸','▶');});btn.classList.add('playing');btn.innerHTML='⏸ Playing…';
-      playAudio(b64,fmt,()=>{btn.classList.remove('playing');btn.innerHTML=`▶ Play in ${langName}`;});}
-  }); return btn;
-}
-function makeDlAudioBtn(b64, fmt, lang) {
-  const btn=document.createElement('button'); btn.className='action-btn dl-btn'; btn.innerHTML='⬇ Audio';
-  btn.addEventListener('click',()=>downloadAudio(b64,fmt,lang)); return btn;
-}
-
-// ── Thumbs feedback functions ─────────────────────────────────────────────────
-let _feedbackExtras = null;
-let _feedbackLang   = null;
-let _feedbackText   = null;
-let _fbRecording    = false;
-let _fbAudioBlob    = null;
-
-// ── makeThumbs — reusable thumbs up/down widget for any output ─────────────────
-// context: 'chat' | 'agent' | 'transcribe'
-// Allows: changing rating, re-rating anytime, no permanent lock
-function makeThumbs(extras, text, lang, context) {
-  const wrap = document.createElement('div');
-  wrap.className = 'thumbs-wrap thumb-wrap';
-  wrap.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
-
-  const thumbUp = document.createElement('button');
-  thumbUp.className = 'thumb-btn thumb-up';
-  thumbUp.innerHTML = '👍'; thumbUp.title = 'This was helpful';
-
-  const thumbDown = document.createElement('button');
-  thumbDown.className = 'thumb-btn thumb-down';
-  thumbDown.innerHTML = '👎'; thumbDown.title = 'This needs improvement';
-
-  // Inline tester code row shown after 👍 click - user must press OK to submit
-  const codeRow = document.createElement('div');
-  codeRow.style.cssText = 'display:none;align-items:center;gap:6px;flex-basis:100%;margin-top:6px;';
-  codeRow.innerHTML = `
-    <span style="font-size:0.72rem;color:var(--text-2)">Tester code (optional):</span>
-    <input type="text" placeholder="e.g. TEST001"
-      style="font-size:0.75rem;padding:3px 8px;border-radius:6px;border:1px solid var(--border);
-             background:var(--bg-3);color:var(--text);text-transform:uppercase;width:110px;outline:none">
-    <button type="button" style="font-size:0.72rem;padding:3px 12px;border-radius:6px;
-      background:var(--green-light);color:#000;border:none;cursor:pointer;font-weight:600">Submit ✓</button>
-    <button type="button" style="font-size:0.72rem;padding:3px 10px;border-radius:6px;
-      background:var(--bg-3);color:var(--text-2);border:1px solid var(--border);cursor:pointer">Skip</button>
-  `;
-  const codeInput = codeRow.querySelectorAll('input')[0];
-  const submitBtn = codeRow.querySelectorAll('button')[0];
-  const skipBtn   = codeRow.querySelectorAll('button')[1];
-
-  let currentRating = null;
-  let upSubmitted   = false;
-
-  function setVisual(rating) {
-    currentRating = rating;
-    thumbUp.classList.remove('rated','active');
-    thumbDown.classList.remove('rated','active');
-    thumbUp.innerHTML   = '👍';
-    thumbDown.innerHTML = '👎';
-    if (rating === 'up')   { thumbUp.classList.add('rated','active');   thumbUp.innerHTML   = '👍✓'; }
-    if (rating === 'down') { thumbDown.classList.add('rated','active'); thumbDown.innerHTML = '👎✓'; }
-  }
-
-  function doSubmitUp(code) {
-    if (upSubmitted) return;
-    upSubmitted = true;
-    codeRow.style.display = 'none';
-    submitRating('up', extras, text, lang, context, '', (code||'').toUpperCase().trim());
-  }
-
-  // ── Thumbs UP ──
-  thumbUp.addEventListener('click', () => {
-    if (currentRating === 'up' && upSubmitted) return; // already fully submitted
-    // Reset so user can re-open code row if they click again before submitting
-    upSubmitted = false;
-    setVisual('up');
-    // Show the code row — user must press Submit or Skip manually
-    codeRow.style.display = 'flex';
-    codeInput.value = '';
-    setTimeout(() => codeInput.focus(), 50);
-  });
-
-  submitBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    doSubmitUp(codeInput.value);
-  });
-
-  skipBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    doSubmitUp('');
-  });
-
-  codeInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.stopPropagation(); doSubmitUp(codeInput.value); }
-  });
-
-  codeInput.addEventListener('click', (e) => e.stopPropagation());
-
-  // ── Thumbs DOWN ──
-  thumbDown.addEventListener('click', () => {
-    // If 👍 code row is open and not yet submitted, cancel it
-    if (currentRating === 'up' && !upSubmitted) {
-      upSubmitted = true; // cancel the up rating
-      codeRow.style.display = 'none';
+    let audioB64 = null, audioFmt = null;
+    if (d.tts_supported) {
+      showTyping('Preparing the voice…');
+      try {
+        const t = await api('/tts', { json: { text: d.answer_local, language: state.lang, speaker: state.speaker },
+                                      timeoutMs: 60000, retries: 1, signal: ctrl.signal });
+        audioB64 = t.audio_base64; audioFmt = t.format || 'wav';
+      } catch (err) {
+        if (isAbort(err)) throw err;
+        // Voice is a bonus: the written answer still appears.
+      }
     }
-    setVisual('down');
-    // Open feedback modal — submitRating('down',...) only fires when user clicks Submit in modal
-    openFeedbackModal(extras, text, lang);
-  });
-
-  wrap.appendChild(thumbUp);
-  wrap.appendChild(thumbDown);
-  wrap.appendChild(codeRow);
-  return wrap;
+    endRequest(true);
+    addBotMessage(d.answer_local, { english: d.answer_english, lang: d.language, audioB64, audioFmt, safety: d.safety,
+      notice: d.notice || (d.tts_supported && !audioB64 ? friendlyMessage('tts_unavailable') : null),
+      ttsSupported: d.tts_supported, questionOriginal: transcript, questionEnglish: d.question_translated });
+    if (audioB64) player.play([{ audio_base64: audioB64, format: audioFmt }]).catch(toastError);
+  } catch (err) {
+    if (isAbort(err)) return;
+    endRequest(false);
+    const recoverable = !(err instanceof ApiError && ['no_speech', 'audio_invalid', 'audio_too_short', 'too_large', 'audio_too_large'].includes(err.code));
+    addKindError(err, recoverable ? () => sendVoiceMessage(blob, transcript) : null);
+  }
 }
 
-
-// ── submitRating — handles BOTH up and down ratings ────────────────────────────
-async function submitRating(rating, extras, text, lang, context, reason, testerCode='') {
-  const payload = {
-    rating,
-    language:          lang,
-    context,           // chat | agent | transcribe
-    question_original: extras?.questionOriginal || '',
-    question_english:  extras?.questionEnglish  || '',
-    answer_local:      text || '',
-    answer_english:    extras?.english || '',
-    reason,
-    tester_code:       testerCode || '',
-    session_id:        sessionId,
-    timestamp:         new Date().toISOString(),
+function initChat() {
+  // Text is the default. If someone picks Voice, we remember it for next time.
+  const setChatMode = (mode, { focus = false } = {}) => {
+    const text = mode !== 'voice';
+    $('modeText').classList.toggle('active', text);
+    $('modeVoice').classList.toggle('active', !text);
+    $('textPanel').classList.toggle('hidden', !text);
+    $('voicePanel').classList.toggle('hidden', text);
+    if (text && focus) $('textInput').focus();
   };
-  try {
-    await fetch(`${API_BASE}/feedback/rating`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-  } catch(e) { console.error('Rating error:', e); }
+  $('modeText').addEventListener('click', () => { recorders[0]?.cancel(); setChatMode('text', { focus: true }); store.set('kasa_chat_mode', 'text'); });
+  $('modeVoice').addEventListener('click', () => { setChatMode('voice'); store.set('kasa_chat_mode', 'voice'); });
+  setChatMode(store.get('kasa_chat_mode', 'text'));
+
+  const input = $('textInput');
+  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMessage(input.value); } });
+  $('sendBtn').addEventListener('click', () => sendTextMessage(input.value));
+
+  // Tap to start, tap again to send (like ChatGPT). Cancel throws the recording away.
+  recorders.push(tapRecorder({
+    owner: 'chat', button: 'micBtn', label: 'micLabel', viz: 'voiceViz',
+    controls: 'recControls', timer: 'recTimer', cancel: 'recCancel',
+    idleText: 'Tap to speak', recordingText: 'Tap to send', maxSeconds: 60,
+    canStart: () => {
+      if (!chat.busy) return true;
+      toast('Kasa is still answering your last question — one moment! 💚', { timeout: 3000 });
+      return false;
+    },
+    onStart: () => player.stop(),
+    onBlob: (blob) => sendVoiceMessage(blob),
+    onMicError: (err) => { if (['mic_denied', 'mic_insecure', 'mic_missing'].includes(err.code)) $('modeText').click(); },
+  }));
 }
 
-function openFeedbackModal(extras, text, lang) {
-  _feedbackExtras = extras; _feedbackText = text; _feedbackLang = lang;
-  _fbAudioBlob = null;
-  // Reset modal
-  document.getElementById('fbReason').value = '';
-  document.getElementById('fbCorrection').value = '';
-  const _fbTc = document.getElementById('fbTesterCode'); if(_fbTc) _fbTc.value = '';
-  document.getElementById('fbRecordLabel').textContent = 'Hold to record correction';
-  document.getElementById('fbAudioStatus').textContent = '';
-  // Show modal
-  const m = document.getElementById('feedbackModal');
-  m.classList.remove('hidden'); setTimeout(()=>m.classList.add('visible'),10);
+/* --- Saved sessions (browser only) --- */
+function saveSession() {
+  if (!chat.display.length) return;
+  const sessions = store.get(SESSIONS_KEY, []).filter((s) => s && s.id !== state.sessionId);
+  sessions.unshift({
+    id: state.sessionId, timestamp: new Date().toISOString(), language: state.lang,
+    preview: (chat.display.find((m) => m.role === 'user')?.text || 'Conversation').slice(0, 80),
+    display: chat.display.slice(-40), history: chat.history.slice(-16),
+  });
+  store.set(SESSIONS_KEY, sessions.slice(0, 20));
 }
 
-function closeFeedbackModal() {
-  const m = document.getElementById('feedbackModal');
-  m.classList.remove('visible');
-  setTimeout(() => {
-    m.classList.add('hidden');
-    // Remove thank-you overlay so form is ready for next use
-    document.getElementById('fbThanksOverlay')?.remove();
-    // Re-enable submit button
-    const btn = document.getElementById('fbSubmitBtn');
-    if (btn) { btn.textContent = 'Submit Correction'; btn.disabled = false; }
-  }, 300);
-}
-
-async function submitThumbsFeedback(rating, extras, text, lang, audioBlob) {
-  const fd = new FormData();
-  fd.append('rating',            rating);
-  fd.append('language',          lang);
-  fd.append('question_original', extras?.questionOriginal || '');
-  fd.append('question_english',  extras?.questionEnglish  || '');
-  fd.append('answer_local',      text || '');
-  fd.append('answer_english',    extras?.english || '');
-  fd.append('correction_text',   document.getElementById('fbCorrection')?.value || '');
-  fd.append('reason',            document.getElementById('fbReason')?.value || '');
-  fd.append('tester_code',       (document.getElementById('fbTesterCode')?.value || '').toUpperCase().trim());
-  fd.append('session_id',        sessionId);
-  if (audioBlob) fd.append('audio', audioBlob, 'correction.wav');
-  try {
-    await fetch(`${API_BASE}/feedback/thumbs`, { method: 'POST', body: fd });
-  } catch(e) { console.error('Feedback error:', e); }
-}
-
-// Feedback modal mic
-const fbMicBtn = document.getElementById('fbMicBtn');
-if(fbMicBtn) {
-  fbMicBtn.addEventListener('mousedown', startFbRecord);
-  fbMicBtn.addEventListener('touchstart', (e)=>{e.preventDefault();startFbRecord();});
-  fbMicBtn.addEventListener('mouseup', stopFbRecord);
-  fbMicBtn.addEventListener('touchend', (e)=>{e.preventDefault();stopFbRecord();});
-  fbMicBtn.addEventListener('mouseleave', ()=>{ if(_fbRecording) stopFbRecord(); });
-}
-
-async function startFbRecord() {
-  if(_fbRecording) return;
-  try {
-    await startWAVRecording(); _fbRecording = true;
-    document.getElementById('fbRecordLabel').textContent = 'Release to stop…';
-    fbMicBtn.classList.add('recording');
-  } catch(e) { alert('Microphone access denied.'); }
-}
-
-function stopFbRecord() {
-  if(!_fbRecording) return; _fbRecording = false;
-  fbMicBtn.classList.remove('recording');
-  const blob = stopWAVRecording();
-  if(blob) {
-    _fbAudioBlob = blob;
-    document.getElementById('fbRecordLabel').textContent = '✅ Audio recorded';
-    document.getElementById('fbAudioStatus').textContent = 'Audio ready to submit';
-  } else {
-    document.getElementById('fbRecordLabel').textContent = 'Hold to record correction';
+function restoreSession(session) {
+  newConversation();
+  state.sessionId = session.id;
+  chat.history = Array.isArray(session.history) ? session.history : [];
+  chat.display = Array.isArray(session.display) ? session.display : [];
+  showWelcome(chat.display.length === 0);
+  for (const m of chat.display) {
+    if (m.role === 'user') addUserMessage(m.text);
+    else addBotMessage(m.text, { english: m.english, lang: m.lang, readOnly: true });
   }
+  closeModal('historyPanel');
+  selectTab('chat');
 }
 
-document.getElementById('feedbackModal')?.addEventListener('click',(e)=>{ if(e.target===document.getElementById('feedbackModal')) closeFeedbackModal(); });
-document.getElementById('fbClose')?.addEventListener('click', closeFeedbackModal);
-
-document.getElementById('fbSubmitBtn')?.addEventListener('click', async ()=>{
-  const btn = document.getElementById('fbSubmitBtn');
-  if (btn.disabled) return;
-  btn.textContent = 'Submitting…';
-  btn.disabled = true;
-  const reason = document.getElementById('fbReason')?.value || '';
-  const fbTesterCode = (document.getElementById('fbTesterCode')?.value || '').toUpperCase().trim();
-  await submitRating('down', _feedbackExtras, _feedbackText, _feedbackLang, 'correction', reason, fbTesterCode);
-  await submitThumbsFeedback('down', _feedbackExtras, _feedbackText, _feedbackLang, _fbAudioBlob);
-  // Show thank-you overlay inside modal without destroying the form HTML
-  const overlay = document.createElement('div');
-  overlay.id = 'fbThanksOverlay';
-  overlay.style.cssText = 'position:absolute;inset:0;background:var(--bg-2);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;z-index:10;';
-  overlay.innerHTML = `<div style="font-size:2.5rem">🙏</div>
-    <h3 style="color:var(--green-light);margin:12px 0 8px">Thank you!</h3>
-    <p style="color:var(--text-2);font-size:0.85rem;text-align:center;padding:0 24px">Your correction helps improve Kasa Health.</p>
-    <button onclick="closeFeedbackModal()" class="survey-submit-btn" style="margin-top:20px;width:auto;padding:10px 28px">Close</button>`;
-  const card = document.querySelector('#feedbackModal .modal-card');
-  if (card) { card.style.position = 'relative'; card.appendChild(overlay); }
-  setTimeout(closeFeedbackModal, 3000);
-});
-
-function showTyping(){const d=document.createElement('div');d.id='typingIndicator';d.className='message typing-indicator';d.innerHTML=`<div class="msg-avatar">🏥</div><div class="msg-content"><div class="msg-bubble"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;document.getElementById('messages').appendChild(d);scrollToBottom();}
-function removeTyping(){document.getElementById('typingIndicator')?.remove();}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ── TRANSCRIBE TAB ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-const transMicBtn   = document.getElementById('transMicBtn');
-const transMicLabel = document.getElementById('transMicLabel');
-const transViz      = document.getElementById('transViz');
-let transRecording  = false;
-let transHistory    = JSON.parse(localStorage.getItem('kasa_transcriptions')||'[]');
-
-transMicBtn.addEventListener('mousedown', startTransRecord);
-transMicBtn.addEventListener('touchstart',(e)=>{e.preventDefault();startTransRecord();});
-transMicBtn.addEventListener('mouseup', stopTransRecord);
-transMicBtn.addEventListener('touchend',(e)=>{e.preventDefault();stopTransRecord();});
-transMicBtn.addEventListener('mouseleave',()=>{if(transRecording)stopTransRecord();});
-
-async function startTransRecord() {
-  if(transRecording) return;
-  try {
-    await startWAVRecording(); transRecording=true;
-    transMicBtn.classList.add('recording'); transMicLabel.textContent='Release to transcribe';
-    transViz.classList.add('recording'); animateBars(transViz);
-  } catch(e){showError('Microphone access denied.');}
-}
-function stopTransRecord() {
-  if(!transRecording) return; transRecording=false;
-  transMicBtn.classList.remove('recording'); transMicLabel.textContent='Processing…';
-  transViz.classList.remove('recording'); resetBars(transViz);
-  const blob = stopWAVRecording();
-  if(blob) doTranscribe(blob); else transMicLabel.textContent='Hold to record';
-}
-
-async function doTranscribe(audioBlob) {
-  const fd = new FormData();
-  fd.append('audio', audioBlob, 'recording.wav');
-  fd.append('language', currentLang);
-  try {
-    const r = await fetch(`${API_BASE}/asr`,{method:'POST',body:fd});
-    const d = await r.json();
-    if(!r.ok||!d.transcript) throw new Error(d.detail||'Could not transcribe');
-    showTranscribeResult(d.transcript);
-    // Save to history
-    transHistory.unshift({text:d.transcript,language:currentLang,timestamp:new Date().toISOString()});
-    transHistory=transHistory.slice(0,20);
-    localStorage.setItem('kasa_transcriptions',JSON.stringify(transHistory));
-    renderTransHistory();
-  } catch(e){ showError(e.message); }
-  finally { transMicLabel.textContent='Hold to record'; }
-}
-
-function showTranscribeResult(text) {
-  document.getElementById('transcribeResult').style.display='block';
-  document.getElementById('transcriptBox').textContent=text;
-  document.getElementById('transLangBadge').textContent=LANG_CONFIG[currentLang].name;
-  // Add thumbs below transcript box
-  const existing = document.getElementById('transThumbs');
-  if(existing) existing.remove();
-  const thumbsEl = makeThumbs({
-    questionOriginal: 'Speech transcription',
-    questionEnglish:  'Speech transcription',
-    english:          text,
-  }, text, currentLang, 'transcribe');
-  thumbsEl.id = 'transThumbs';
-  thumbsEl.style.marginTop = '10px';
-  document.getElementById('transcribeResult').appendChild(thumbsEl);
-}
-
-document.getElementById('transCopyBtn').addEventListener('click',()=>{
-  const text = document.getElementById('transcriptBox').textContent;
-  navigator.clipboard.writeText(text).then(()=>{ document.getElementById('transCopyBtn').textContent='✅ Copied!'; setTimeout(()=>{document.getElementById('transCopyBtn').textContent='📋 Copy';},2000); });
-});
-document.getElementById('transDownloadBtn').addEventListener('click',()=>{
-  const text = document.getElementById('transcriptBox').textContent;
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
-  a.download=`transcription-${currentLang}-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(a.href);
-});
-
-function renderTransHistory() {
-  const list = document.getElementById('transHistoryList');
-  if(!list) return;
-  if(!transHistory.length){list.innerHTML='<p style="color:var(--text-3);font-size:0.8rem">No transcriptions yet.</p>';return;}
-  list.innerHTML=transHistory.map((t,i)=>`
-    <div class="trans-item" onclick="document.getElementById('transcriptBox').textContent=this.dataset.text;document.getElementById('transcribeResult').style.display='block';" data-text="${t.text.replace(/"/g,'&quot;')}">
-      <span class="trans-lang">${LANG_CONFIG[t.language]?.name||t.language}</span>
-      <span class="trans-preview">${t.text.slice(0,60)}${t.text.length>60?'…':''}</span>
-      <span class="trans-time">${new Date(t.timestamp).toLocaleTimeString()}</span>
-    </div>`).join('');
-}
-renderTransHistory();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ── VOICE AGENT TAB ────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-const agentMicBtn   = document.getElementById('agentMicBtn');
-const agentMicLabel = document.getElementById('agentMicLabel');
-const agentViz      = document.getElementById('agentViz');
-const agentConv     = document.getElementById('agentConversation');
-const agentPill     = document.getElementById('agentStatusPill');
-const agentAvatar   = document.getElementById('agentAvatar');
-let agentRecording  = false;
-let agentSpeaking   = false;
-
-agentMicBtn.addEventListener('mousedown', startAgentRecord);
-agentMicBtn.addEventListener('touchstart',(e)=>{e.preventDefault();startAgentRecord();});
-agentMicBtn.addEventListener('mouseup', stopAgentRecord);
-agentMicBtn.addEventListener('touchend',(e)=>{e.preventDefault();stopAgentRecord();});
-agentMicBtn.addEventListener('mouseleave',()=>{if(agentRecording)stopAgentRecord();});
-
-document.getElementById('agentClearBtn').addEventListener('click',()=>{
-  agentHistory=[];
-  agentConv.innerHTML=`<div class="agent-bubble agent-bubble-system">👋 Hi! I'm Kasa, your health companion. Ask me anything about your health — I'll understand and reply in your language. Press the button below to start talking.</div>`;
-  setAgentStatus('Ready','');
-});
-
-async function startAgentRecord() {
-  if(agentRecording||agentSpeaking) return;
-  try {
-    await startWAVRecording(); agentRecording=true;
-    agentMicBtn.classList.add('recording'); agentMicLabel.textContent='Release to send';
-    agentViz.classList.add('recording'); animateBars(agentViz);
-    setAgentStatus('Listening…','listening');
-  } catch(e){showError('Microphone access denied.');}
-}
-
-function stopAgentRecord() {
-  if(!agentRecording) return; agentRecording=false;
-  agentMicBtn.classList.remove('recording'); agentMicLabel.textContent='Processing…';
-  agentViz.classList.remove('recording'); resetBars(agentViz);
-  setAgentStatus('Thinking…','thinking');
-  const blob = stopWAVRecording();
-  if(blob) runAgentTurn(blob); else { agentMicLabel.textContent='Hold to talk'; setAgentStatus('Ready',''); }
-}
-
-async function runAgentTurn(audioBlob) {
-  const fd = new FormData();
-  fd.append('audio', audioBlob, 'recording.wav');
-  fd.append('language', currentLang);
-  fd.append('speaker', currentSpeaker);
-  fd.append('history', JSON.stringify(agentHistory.slice(-8)));
-
-  try {
-    const r = await fetch(`${API_BASE}/agent`,{method:'POST',body:fd});
-    const d = await r.json();
-    if(!r.ok) throw new Error(d.detail||'Agent error');
-
-    // Show user bubble
-    appendAgentBubble('user', d.transcript, d.language_name||LANG_CONFIG[currentLang].name);
-    // Show agent bubble with thumbs
-    appendAgentBubble('agent', d.answer_local, 'Kasa', d.answer_english, {
-      question: d.transcript, questionEnglish: d.question_english
-    });
-
-    // Update history
-    agentHistory.push(d.history_entry_user);
-    agentHistory.push(d.history_entry_agent);
-
-    // Play audio response
-    if(d.audio_base64){
-      agentSpeaking=true; setAgentStatus('Speaking…','speaking');
-      agentAvatar.classList.add('speaking');
-      const audio = playAudio(d.audio_base64, d.audio_format||'wav', ()=>{
-        agentSpeaking=false; agentMicLabel.textContent='Hold to talk';
-        setAgentStatus('Ready',''); agentAvatar.classList.remove('speaking');
-      });
+function initHistory() {
+  $('historyBtn').addEventListener('click', () => {
+    const list = $('historyList');
+    const sessions = store.get(SESSIONS_KEY, []).filter((s) => s && typeof s === 'object');
+    if (!sessions.length) {
+      list.replaceChildren(el('p', { class: 'history-empty' }, 'No saved conversations yet.'));
     } else {
-      agentMicLabel.textContent='Hold to talk'; setAgentStatus('Ready','');
+      list.replaceChildren(...sessions.map((s) => {
+        const item = el('button', { type: 'button', class: 'history-item', title: 'Open this conversation' },
+          el('div', { class: 'history-lang' }, LANGS[s.language]?.name || String(s.language || '')),
+          el('div', { class: 'history-preview' }, `${String(s.preview || '')}…`),
+          el('div', { class: 'history-time' }, new Date(s.timestamp).toLocaleDateString()));
+        if (Array.isArray(s.display)) item.addEventListener('click', () => restoreSession(s));
+        return item;
+      }));
     }
-  } catch(e){
-    appendAgentBubble('system','Sorry, something went wrong. Please try again.','');
-    agentMicLabel.textContent='Hold to talk'; setAgentStatus('Ready','');
-    console.error(e);
-  }
+    openModal('historyPanel');
+  });
+  $('historyClose').addEventListener('click', () => closeModal('historyPanel'));
+  $('historyPanel').addEventListener('click', (e) => { if (e.target === $('historyPanel')) closeModal('historyPanel'); });
 }
 
-function appendAgentBubble(role, text, label, englishText='', extras={}) {
-  const wrap = document.createElement('div');
-  wrap.className = `agent-bubble-wrap agent-bubble-${role}`;
+// --- Transcribe ---
+let transcripts = store.get(TRANSCRIPTS_KEY, []);
 
-  const labelEl = document.createElement('div');
-  if(label) { labelEl.className='agent-bubble-label'; labelEl.textContent=`${role==='user'?'👤':role==='agent'?'🤖':'ℹ️'} ${label}`; wrap.appendChild(labelEl); }
-
-  const bubble = document.createElement('div');
-  bubble.className = `agent-bubble agent-bubble-${role}`;
-  bubble.textContent = text;
-  wrap.appendChild(bubble);
-
-  if(englishText && englishText!==text) {
-    const eng = document.createElement('div');
-    eng.className = 'agent-bubble-english'; eng.textContent = englishText;
-    wrap.appendChild(eng);
-  }
-
-  // Per-message disclaimer on agent responses
-  if(role === 'agent') {
-    const agentDisc = document.createElement('div');
-    agentDisc.className = 'msg-disclaimer';
-    agentDisc.innerHTML = '⚕️ General info only. Contact <strong>SHEplus Ghana</strong>: <a href="tel:0550545672" style="color:var(--green-light)">055 054 5672</a> / <a href="tel:0800001122" style="color:var(--green-light)">0800 00 11 22</a>';
-    wrap.appendChild(agentDisc);
-  }
-
-  // Add thumbs on agent responses only
-  if(role === 'agent') {
-    wrap.appendChild(makeThumbs({
-      questionOriginal: extras.question || '',
-      questionEnglish:  extras.questionEnglish || '',
-      english:          englishText || '',
-    }, text, currentLang, 'agent'));
-  }
-
-  agentConv.appendChild(wrap);
-  agentConv.scrollTop = agentConv.scrollHeight;
+function showTranscript(text) {
+  $('transcribeResult').style.display = 'block';
+  $('transcriptBox').textContent = text;
+  $('transLangBadge').textContent = state.langName;
+  $('transThumbs')?.remove();
+  const thumbs = makeThumbs({ questionOriginal: 'Speech transcription', questionEnglish: 'Speech transcription', english: text },
+    text, state.lang, 'transcribe');
+  thumbs.id = 'transThumbs';
+  $('transcribeResult').appendChild(thumbs);
 }
 
-function escHtml(str) { const d=document.createElement('div');d.textContent=str;return d.innerHTML; }
-
-function setAgentStatus(text, state) {
-  agentPill.textContent = text;
-  agentPill.className = `agent-status-pill ${state?'agent-status-'+state:''}`;
+function renderTranscriptHistory() {
+  const list = $('transHistoryList');
+  if (!transcripts.length) {
+    list.replaceChildren(el('p', { class: 'history-empty' }, 'No transcriptions yet.'));
+    return;
+  }
+  list.replaceChildren(...transcripts.map((t) => {
+    const text = String(t.text || '');
+    return el('button', { type: 'button', class: 'trans-item', onclick: () => showTranscript(text) },
+      el('span', { class: 'trans-lang' }, LANGS[t.language]?.name || String(t.language || '')),
+      el('span', { class: 'trans-preview' }, text.length > 60 ? `${text.slice(0, 60)}…` : text),
+      el('span', { class: 'trans-time' }, new Date(t.timestamp).toLocaleTimeString()));
+  }));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ── UI HELPERS ────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-function showWelcome(show){ document.getElementById('welcome').style.display=show?'flex':'none'; }
-function showProcessing(text){ document.getElementById('processingText').textContent=text; document.getElementById('processingOverlay').classList.remove('hidden'); }
-function setProcessingText(text){ document.getElementById('processingText').textContent=text; }
-function hideProcessing(){ document.getElementById('processingOverlay').classList.add('hidden'); }
-function setStatus(state){ const d=document.getElementById('statusDot');d.className='status-dot';if(state==='busy')d.classList.add('busy');if(state==='error')d.classList.add('error'); }
+function initTranscribe() {
+  let busy = false;
+  const transcribe = async (blob) => {
+    busy = true;
+    $('transMicLabel').textContent = 'Transcribing…';
+    $('transMicBtn').disabled = true;
+    const form = new FormData();
+    form.append('audio', blob, 'recording.wav');
+    form.append('language', state.lang);
+    try {
+      const d = await api('/asr', { form, timeoutMs: 60000, retries: 1 });
+      showTranscript(d.transcript);
+      transcripts.unshift({ text: d.transcript, language: state.lang, timestamp: new Date().toISOString() });
+      transcripts = transcripts.slice(0, 20);
+      store.set(TRANSCRIPTS_KEY, transcripts);
+      renderTranscriptHistory();
+    } catch (err) {
+      if (!isAbort(err)) toastError(err);
+    } finally {
+      busy = false;
+      $('transMicBtn').disabled = false;
+      $('transMicLabel').textContent = 'Tap to record';
+    }
+  };
 
-// ── Health ping — check backend is online ─────────────────────────────────────
+  recorders.push(tapRecorder({
+    owner: 'transcribe', button: 'transMicBtn', label: 'transMicLabel', viz: 'transViz',
+    controls: 'transRecControls', timer: 'transRecTimer', cancel: 'transRecCancel',
+    idleText: 'Tap to record', recordingText: 'Tap to stop', maxSeconds: 120,
+    canStart: () => {
+      if (!busy) return true;
+      toast('Still working on your last recording — one moment!', { timeout: 2500 });
+      return false;
+    },
+    onStart: () => player.stop(),
+    onBlob: transcribe,
+  }));
+
+  $('transCopyBtn').addEventListener('click', async () => {
+    const copyBtn = $('transCopyBtn');
+    try {
+      await navigator.clipboard.writeText($('transcriptBox').textContent);
+      copyBtn.textContent = '✅ Copied!';
+    } catch {
+      copyBtn.textContent = 'Select & copy manually';
+    }
+    setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 2000);
+  });
+  $('transDownloadBtn').addEventListener('click', () =>
+    downloadText($('transcriptBox').textContent, `transcription-${state.lang}-${Date.now()}.txt`));
+  renderTranscriptHistory();
+}
+
+// --- Disclaimer, connectivity, startup ---
+function initDisclaimer() {
+  const modal = $('disclaimerModal'), check = $('disclaimerCheck'), agree = $('disclaimerAgreeBtn');
+  const scroller = $('disclaimerScroll'), hint = $('disclaimerScrollHint');
+  let agreed = false;
+  try { agreed = sessionStorage.getItem('kasa_disclaimer_agreed') === 'true'; } catch { /* private mode */ }
+  if (!agreed) openModal('disclaimerModal'); else modal.classList.add('hidden');
+
+  // The tick-box only unlocks once they've scrolled through everything.
+  let readAll = false;
+  const unlock = () => {
+    if (readAll) return;
+    readAll = true;
+    check.disabled = false;
+    $('disclaimerCheckLabel').classList.remove('disabled');
+    hint.textContent = '✓ Thank you for reading. Please tick the box to continue.';
+    hint.classList.add('done');
+  };
+  const checkScrolled = () => {
+    if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 12) unlock();
+  };
+  scroller.addEventListener('scroll', checkScrolled, { passive: true });
+  // On big screens the text may fit without scrolling, so that counts as read.
+  const checkFits = () => { if (modal.classList.contains('visible') || !modal.classList.contains('hidden')) checkScrolled(); };
+  setTimeout(checkFits, 400);
+  window.addEventListener('resize', checkFits);
+
+  check.addEventListener('change', () => {
+    agree.disabled = !check.checked;
+    agree.classList.toggle('enabled', check.checked);
+    $('disclaimerCheckLabel').classList.toggle('checked', check.checked);
+  });
+  agree.addEventListener('click', () => {
+    try { sessionStorage.setItem('kasa_disclaimer_agreed', 'true'); } catch { /* ignore */ }
+    closeModal('disclaimerModal');
+  });
+}
+
+let wasOffline = false;
 async function pingBackend() {
   try {
-    const r = await fetch(`${API_BASE}/languages`, { method: 'GET', signal: AbortSignal.timeout(5000) });
-    setStatus(r.ok ? 'ok' : 'error');
+    await api('/languages', { timeoutMs: 6000, retries: 0 });
+    setStatus('ok');
+    if (wasOffline) { toast("You're back online. 💚", { timeout: 2500 }); wasOffline = false; }
   } catch {
     setStatus('error');
   }
 }
-setTimeout(pingBackend, 2000);          // wait 2s after load before first ping
-setInterval(pingBackend, 120000);       // re-check every 2 minutes (Starter plan - always on)
-function scrollToBottom(){ requestAnimationFrame(()=>{ const ca=document.getElementById('chatArea');ca.scrollTop=ca.scrollHeight; }); }
-function showError(msg){ const d=document.createElement('div');d.className='message';d.innerHTML=`<div class="msg-avatar" style="background:rgba(248,81,73,0.1);border-color:var(--red)">⚠️</div><div class="msg-content"><div class="msg-bubble" style="border-color:rgba(248,81,73,0.3);color:var(--red)">${msg}</div></div>`;document.getElementById('messages').appendChild(d);scrollToBottom(); }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-
-// ── Disclaimer modal ──────────────────────────────────────────────────────────
-const disclaimerModal   = document.getElementById('disclaimerModal');
-const disclaimerCheck   = document.getElementById('disclaimerCheck');
-const disclaimerAgreeBtn = document.getElementById('disclaimerAgreeBtn');
-const checkLabel        = document.getElementById('disclaimerCheckLabel');
-
-// Show disclaimer on every visit (required for safeguarding)
-// Only skip if user agreed in this same browser session (not across sessions)
-if (!sessionStorage.getItem('kasa_disclaimer_agreed')) {
-  disclaimerModal.classList.remove('hidden');
-  setTimeout(() => disclaimerModal.classList.add('visible'), 10);
-} else {
-  disclaimerModal.classList.add('hidden');
+function initConnectivity() {
+  window.addEventListener('offline', () => {
+    wasOffline = true;
+    setStatus('error');
+    toast(friendlyMessage('offline'), { tone: 'warn', timeout: 6000 });
+  });
+  window.addEventListener('online', pingBackend);
+  setTimeout(pingBackend, 1500);
+  setInterval(pingBackend, 120000);
 }
 
-// Enable agree button only when checkbox is ticked
-disclaimerCheck.addEventListener('change', () => {
-  if (disclaimerCheck.checked) {
-    disclaimerAgreeBtn.disabled = false;
-    disclaimerAgreeBtn.style.background    = 'var(--green)';
-    disclaimerAgreeBtn.style.borderColor   = 'var(--green)';
-    disclaimerAgreeBtn.style.color         = '#fff';
-    disclaimerAgreeBtn.style.cursor        = 'pointer';
-    checkLabel.style.borderColor           = 'var(--green)';
-  } else {
-    disclaimerAgreeBtn.disabled = true;
-    disclaimerAgreeBtn.style.background    = 'var(--bg-3)';
-    disclaimerAgreeBtn.style.borderColor   = 'var(--border)';
-    disclaimerAgreeBtn.style.color         = 'var(--text-3)';
-    disclaimerAgreeBtn.style.cursor        = 'not-allowed';
-    checkLabel.style.borderColor           = 'var(--border)';
-  }
+// Last safety net: unexpected errors go to the console, never onto the screen.
+window.addEventListener('unhandledrejection', (e) => {
+  if (isAbort(e.reason)) { e.preventDefault(); return; }
+  console.error('[Kasa] Unhandled:', e.reason);
+  e.preventDefault();
 });
+window.addEventListener('error', (e) => console.error('[Kasa] Error:', e.error || e.message));
+window.addEventListener('beforeunload', saveSession);
 
-disclaimerAgreeBtn.addEventListener('click', () => {
-  sessionStorage.setItem('kasa_disclaimer_agreed', 'true');
-  disclaimerModal.classList.remove('visible');
-  setTimeout(() => {
-    disclaimerModal.classList.add('hidden');
-    disclaimerModal.style.opacity = '';
-  }, 300);
-});
+function init() {
+  initTheme();
+  initTabs();
+  initSettings();
+  initChat();
+  initHistory();
+  initTranscribe();
+  initAgent();
+  initFeedback();
+  initDisclaimer();
+  initConnectivity();
+  showWelcome(true);
+  closeSidebarOnMobile();
+  if (!window.isSecureContext) toast(friendlyMessage('mic_insecure'), { tone: 'warn', timeout: 8000 });
+}
 
-document.getElementById('welcome').style.display='flex';
-if(window.innerWidth<768) document.getElementById('sidebar').classList.remove('open');
+init();

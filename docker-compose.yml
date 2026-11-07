@@ -1,32 +1,30 @@
-version: '3.9'
-
+# Local / self-hosted deployment:  docker compose up --build
+# Reads secrets from .env in this folder (copy .env.example to .env first).
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    build: ./backend
+    env_file: .env
     environment:
-      - KHAYA_API_KEY=${KHAYA_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATA_DIR=/data
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=http://localhost:5000
+    volumes:
+      - kasa-data:/data            # database + correction audio survive restarts
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # Not published to the host: only the frontend talks to it.
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
+    build: ./frontend
+    env_file: .env
     environment:
       - FASTAPI_URL=http://backend:8000
-      - FLASK_PORT=5000
+      - PROXY_COUNT=0              # set to 1 if you put a reverse proxy (nginx, Caddy) in front
+    ports:
+      - "5000:5000"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  kasa-data:

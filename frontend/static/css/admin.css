@@ -1,0 +1,106 @@
+/* main.css locks page scrolling for the chat app; the admin page needs normal scrolling. */
+html.admin-page, html.admin-page body { height: auto; min-height: 100%; overflow: auto; overflow-x: hidden; }
+.admin-body { display: block; }
+.admin { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+.admin-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.admin-head h1 { font-size: 1.2rem; }
+.admin-auth { display: flex; gap: 6px; }
+.admin-auth input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-2); color: var(--text); font-size: 16px; min-width: 220px; }
+.admin button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-3); color: var(--text); cursor: pointer; font-family: inherit; font-size: 0.82rem; }
+.admin button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+.admin button:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-msg { color: var(--text-2); font-size: 0.85rem; margin: 8px 0 16px; min-height: 1.2em; }
+.admin-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
+.admin-card-head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.admin-card h2 { font-size: 1rem; } .admin-card h3 { font-size: 0.88rem; margin: 16px 0 6px; color: var(--text-2); }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-help { font-size: 0.78rem; color: var(--text-2); line-height: 1.6; margin-bottom: 10px; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.admin-table th, .admin-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.admin-table th { color: var(--text-3); font-weight: 600; white-space: nowrap; }
+.admin-table td.err { color: var(--text-2); max-width: 320px; word-break: break-word; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+.pill.ok { background: var(--green-glow); color: var(--green-light); }
+.pill.warn { background: rgba(212,160,23,0.15); color: var(--gold); }
+.pill.bad { background: rgba(248,81,73,0.12); color: var(--red); }
+.pill.off { background: var(--bg-3); color: var(--text-3); }
+.move { padding: 2px 8px !important; margin-right: 2px; }
+.admin-pre { margin-top: 10px; padding: 10px; background: var(--bg-3); border-radius: 8px; font-size: 0.75rem; overflow-x: auto; white-space: pre-wrap; }
+
+/* --- dashboard v8.2 --- */
+.icon-btn { min-width: 38px; }
+.muted { color: var(--text-3); font-size: 0.78rem; }
+.admin-nav { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center;
+  padding: 10px 2px; margin-bottom: 12px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.admin-nav a { color: var(--text-2); text-decoration: none; }
+.admin-nav a:hover { color: var(--green-light); }
+.auto-refresh { margin-left: auto; display: flex; gap: 6px; align-items: center; color: var(--text-2); }
+
+.status-banner { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 16px; border-radius: 14px;
+  margin-bottom: 18px; border: 1px solid var(--border); background: var(--bg-2); }
+.status-banner .status-icon { font-size: 1.8rem; }
+.status-banner .status-text { flex: 1; min-width: 220px; display: grid; gap: 2px; }
+.status-banner .status-text strong { font-size: 1rem; }
+.status-banner .status-text span { font-size: 0.78rem; color: var(--text-2); }
+.status-banner.ok { border-color: rgba(63,185,80,0.5); background: var(--green-glow); }
+.status-banner.warning { border-color: rgba(212,160,23,0.5); background: rgba(212,160,23,0.08); }
+.status-banner.degraded { border-color: rgba(230,120,30,0.55); background: rgba(230,120,30,0.08); }
+.status-banner.critical { border-color: rgba(248,81,73,0.6); background: rgba(248,81,73,0.09); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 0.72rem; color: var(--text-2); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dot.ok { background: var(--green); }
+.dot.slow, .dot.warning { background: var(--gold); }
+.dot.down { background: var(--red); box-shadow: 0 0 0 3px rgba(248,81,73,0.2); }
+.dot.off, .dot.none { background: var(--text-3); opacity: 0.5; }
+
+.health-group h3 { margin-top: 14px; }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.health-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg); display: grid; gap: 6px; }
+.health-card.down { border-color: rgba(248,81,73,0.55); }
+.health-card.slow, .health-card.warning { border-color: rgba(212,160,23,0.5); }
+.health-card.off { opacity: 0.8; }
+.hc-top { display: flex; align-items: center; gap: 8px; }
+.hc-name { font-weight: 600; font-size: 0.86rem; flex: 1; }
+.hc-ms { font-size: 0.72rem; color: var(--text-3); white-space: nowrap; }
+.hc-detail { font-size: 0.75rem; color: var(--text-2); word-break: break-word; }
+.hc-advice { font-size: 0.76rem; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: var(--bg-3);
+  border-left: 3px solid var(--gold); color: var(--text); }
+.health-card.down .hc-advice { border-left-color: var(--red); }
+.health-card.off .hc-advice { border-left-color: var(--text-3); }
+.hc-strip { display: flex; gap: 2px; height: 8px; }
+.hc-strip span { flex: 1; border-radius: 2px; background: var(--bg-3); }
+.hc-strip span.ok { background: var(--green); }
+.hc-strip span.slow, .hc-strip span.warning { background: var(--gold); }
+.hc-strip span.down { background: var(--red); }
+.hc-strip span.off { background: var(--text-3); opacity: 0.35; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.kpi { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg); }
+.kpi .num { font-size: 1.4rem; font-weight: 700; }
+.kpi .lbl { font-size: 0.72rem; color: var(--text-2); }
+.kpi .sub { font-size: 0.7rem; color: var(--text-3); margin-top: 2px; }
+.kpi.alert .num { color: var(--red); }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.lang-row { display: grid; grid-template-columns: 70px 1fr 90px; gap: 8px; align-items: center; font-size: 0.78rem; margin: 6px 0; }
+.lang-bar { height: 10px; border-radius: 6px; background: rgba(248,81,73,0.35); overflow: hidden; }
+.lang-bar > span { display: block; height: 100%; background: var(--green); }
+.inc-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.78rem; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.downloads { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.dl { border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: grid; gap: 8px; background: var(--bg); }
+.dl strong { font-size: 0.86rem; } .dl .row { display: flex; gap: 6px; }
+@media (max-width: 700px) {
+  .two-col { grid-template-columns: 1fr; }
+  .admin-auth { width: 100%; } .admin-auth input { flex: 1; min-width: 0; }
+  .status-banner .admin-actions { width: 100%; } .status-banner .admin-actions button { flex: 1; }
+  .auto-refresh { margin-left: 0; }
+}
+.status-banner.none { border-style: dashed; }
+
+.scroll-btns { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 8px; z-index: 20; }
+.scroll-btn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: var(--green);
+  color: #fff; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+.scroll-btn:hover { filter: brightness(1.1); }
+.scroll-btn[hidden] { display: none; }

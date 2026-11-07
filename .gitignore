@@ -1,12 +1,23 @@
+# Secrets
 .env
-.idea/
-__pycache__/
-*.pyc
-.DS_Store
-.env
-venv/
-__pycache__/
-.DS_Store
+.env.*
+!.env.example
+
+# Data (personal information — never commit)
+backend/data/
+*.db
+*.db-wal
+*.db-shm
 backend/feedback.json
 backend/ratings.json
 backend/surveys.json
+
+# Python / tooling
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+.idea/
+.vscode/
+.DS_Store

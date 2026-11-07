@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" class="admin-page">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="robots" content="noindex, nofollow">
+  <title>Kasa Health — Admin</title>
+  <script src="/static/js/theme-init.js?v={{ asset_version }}"></script>
+  <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version }}"/>
+  <link rel="stylesheet" href="/static/css/admin.css?v={{ asset_version }}"/>
+</head>
+<body class="admin-body">
+<main class="admin">
+  <header class="admin-head">
+    <h1>Kasa Health · Admin</h1>
+    <div class="admin-auth">
+      <button type="button" id="themeToggle" class="icon-btn" aria-label="Switch light or dark mode">🌙</button>
+      <input type="password" id="adminToken" placeholder="Admin token" autocomplete="current-password" aria-label="Admin token">
+      <button type="button" id="adminConnect" class="primary">Connect</button>
+    </div>
+  </header>
+  <p class="admin-msg" id="adminMsg" role="status" aria-live="polite">Enter your ADMIN_TOKEN to continue.</p>
+
+  <div id="dashboard" hidden>
+    <nav class="admin-nav" aria-label="Sections">
+      <a href="#health">Health</a><a href="#overview">Overview</a><a href="#providers">AI providers</a>
+      <a href="#incidents">Incidents</a><a href="#safety">Safety</a><a href="#data">Data</a>
+      <label class="auto-refresh" title="Re-reads saved results and numbers. It never calls the AI or Khaya APIs."><input type="checkbox" id="autoRefresh" checked> Auto-refresh (free)</label>
+    </nav>
+
+    <!-- Overall status -->
+    <section class="status-banner" id="statusBanner" aria-live="polite">
+      <div class="status-icon" id="statusIcon">⏳</div>
+      <div class="status-text">
+        <strong id="statusHeadline">Checking…</strong>
+        <span id="statusSub"></span>
+      </div>
+      <div class="admin-actions">
+        <button type="button" id="quickCheck" class="primary" title="About 3 small Khaya calls + 1 tiny call per AI provider">Run quick check</button>
+        <button type="button" id="fullCheck" title="About 9 small Khaya calls + 1 tiny call per AI provider">Full check (all languages)</button>
+      </div>
+    </section>
+
+    <!-- Health -->
+    <section class="admin-card" id="health">
+      <div class="admin-card-head"><h2>Service health</h2>
+        <div class="legend"><span class="dot ok"></span>Working <span class="dot slow"></span>Slow / warning
+          <span class="dot down"></span>Not working <span class="dot off"></span>Not set up</div></div>
+      <p class="admin-help">Nothing here runs on its own — the APIs are only tested when you press a check button.
+        <strong>Quick check</strong> tests every AI provider plus Twi translation, voice (TTS) and speech recognition (ASR):
+        about 3 small Khaya calls and one tiny request per AI provider. <strong>Full check</strong> does the same for
+        Twi, Dagbani and Ewe (about 9 Khaya calls). For ASR, Kasa feeds in the voice it just generated, so a pass means the
+        whole voice path works. The coloured strip shows your recent checks (oldest → newest).</p>
+      <div id="healthGroups"></div>
+    </section>
+
+    <!-- Overview -->
+    <section class="admin-card" id="overview">
+      <div class="admin-card-head"><h2>Overview</h2><span class="muted" id="uptime"></span></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="two-col">
+        <div><h3>Ratings by language</h3><div id="langBars"></div></div>
+        <div><h3>Problems in the last 24 hours</h3><div id="incidentSummary"></div></div>
+      </div>
+    </section>
+
+    <!-- Providers -->
+    <section class="admin-card" id="providers">
+      <div class="admin-card-head">
+        <h2>AI provider order</h2>
+        <div class="admin-actions">
+          <button type="button" id="saveOrder" class="primary">Save order</button>
+          <button type="button" id="resetCircuits">Reset cool-downs</button>
+        </div>
+      </div>
+      <p class="admin-help">Kasa tries providers top to bottom. If one fails it moves on straight away; if one is slow
+        (over <span id="hedgeChat">6</span> s in chat, <span id="hedgeAgent">3</span> s in the voice agent) the next one starts
+        alongside it and the quicker answer wins. Saved changes reach every server within a few seconds.
+        <em>Success and speed figures come from whichever server process answered this page.</em></p>
+      <div class="table-wrap"><table class="admin-table">
+        <thead><tr><th>#</th><th>Provider</th><th>Model</th><th>On</th><th>Status</th><th>Success</th><th>Speed</th><th>Last problem</th><th>Move</th></tr></thead>
+        <tbody id="llmRows"></tbody>
+      </table></div>
+    </section>
+
+    <!-- Incidents -->
+    <section class="admin-card" id="incidents">
+      <div class="admin-card-head"><h2>Recent errors</h2>
+        <div class="admin-actions"><button type="button" id="testEmail">Send test email</button>
+          <button type="button" id="retrySync">Retry failed syncs</button></div></div>
+      <p class="admin-help" id="alertInfo"></p>
+      <div class="table-wrap"><table class="admin-table"><thead><tr><th>When</th><th>What</th><th>Where</th><th>Ref</th><th>Detail</th></tr></thead>
+        <tbody id="incidentRows"></tbody></table></div>
+    </section>
+
+    <!-- Safety -->
+    <section class="admin-card" id="safety">
+      <div class="admin-card-head"><h2>Safety reports</h2></div>
+      <p class="admin-help">Contact requests include a young person's phone number. Please handle them quickly and keep them private.</p>
+      <div class="table-wrap"><table class="admin-table"><thead><tr><th>When</th><th>Type</th><th>Category</th><th>Contact</th><th>Message</th></tr></thead>
+        <tbody id="safetyRows"></tbody></table></div>
+    </section>
+
+    <!-- Data -->
+    <section class="admin-card" id="data">
+      <div class="admin-card-head"><h2>Download data</h2></div>
+      <p class="admin-help">CSV opens in Excel or Google Sheets. Surveys and safety reports can contain personal details — store them securely.</p>
+      <div class="downloads" id="downloads"></div>
+    </section>
+  </div>
+</main>
+<div class="scroll-btns" aria-label="Scroll">
+  <button type="button" id="toTop" class="scroll-btn" aria-label="Back to top" title="Back to top" hidden>↑</button>
+  <button type="button" id="toBottom" class="scroll-btn" aria-label="Go to bottom" title="Go to bottom" hidden>↓</button>
+</div>
+<script type="module" src="/static/js/admin.js?v={{ asset_version }}"></script>
+</body>
+</html>

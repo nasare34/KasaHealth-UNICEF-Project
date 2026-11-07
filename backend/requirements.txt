@@ -1,9 +1,10 @@
-fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
-httpx>=0.27.0
-python-multipart>=0.0.9
-groq>=0.9.0
-python-dotenv>=1.0.1
-pydantic>=2.7.1
-flask>=3.0.3
-requests>=2.32.3
+# Kasa Health backend — versions pinned to the set tested for v8.
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+gunicorn==26.2.0
+httpx==0.28.1
+pydantic==2.14.3
+python-multipart==0.0.33
+python-dotenv==1.2.4
+# The Groq SDK is no longer needed: Grok and Groq are both called through
+# their OpenAI-compatible HTTP APIs with httpx.
